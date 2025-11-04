@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD - Produto</title>
+    <link rel="stylesheet" href="./produto.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <script defer src="/header.js"></script>
+  </head>
+  
+  <body>
+    <header id="header">
+      
+    </header>
+    
+    <main>
+        <section class="form-section">
+            <h2>Cadastro de Produto</h2>
+            <form id="produtoForm">
+                <div class="search-container">
+                    <label for="searchId">Buscar por ID:</label>
+                    <div class="search-input-group">
+                        <input type="number" id="searchId" placeholder="Digite o ID do produto">
+                        <button type="button" id="btnBuscar">🔍 Buscar</button>
+                        <button type="button" id="btnIncluir" class="btn-primary">Incluir</button>
+                        <button type="button" id="btnAlterar" class="btn-secondary" style="display:none;">Alterar</button>
+                        <button type="button" id="btnExcluir" class="btn-danger" style="display:none;">Excluir</button>
+                        <button type="button" id="btnSalvar" class="btn-save" style="display:none;">Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+
+                <fieldset>
+                    <legend>Dados do Produto</legend>
+
+                    <div class="form-group">
+                        <label for="nome_tenis">Nome:</label>
+                        <input type="text" id="nome_tenis" name="nome_tenis" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tamanho_disponivel">Tamanho Disponível:</label>
+                        <input type="text" id="tamanho_disponivel" name="tamanho_disponivel">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quantidade_em_estoque">Quantidade em Estoque:</label>
+                        <input type="number" id="quantidade_em_estoque" name="quantidade_em_estoque" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preco_unitario">Preço Unitário:</label>
+                        <input type="number" step="0.01" id="preco_unitario" name="preco_unitario" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="imagem">Imagem do Produto:</label>
+                        <input type="file" id="imagem" name="imagem" accept="image/*">
+                        <img id="previewImagem" src="" alt="Pré-visualização" style="display:none; width: 100px; margin-top: 8px; border-radius: 5px;">
+                    </div>
+                </fieldset>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>Lista de Produtos</h2>
+            <table id="produtosTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Imagem</th>
+                        <th>Nome</th>
+                        <th>Tamanho</th>
+                        <th>Quantidade</th>
+                        <th>Preço</th>
+                    </tr>
+                </thead>
+                <tbody id="produtosTableBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 CRUD Produto</p>
+    </footer>
+
+    <div id="messageContainer" class="message-container"></div>
+    <script src="./produto.js" defer></script>
+</body>
+</html>

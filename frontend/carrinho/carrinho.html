@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrinho</title>
+    <link rel="stylesheet" href="carrinho.css">
+    <script defer src="carrinho.js"></script>
+    <link rel="stylesheet" href="/header.css">
+    <script defer src="/header.js"></script>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  </head>
+  
+  <body>
+    <header id="header">
+      
+    </header>
+    <div class="carrinho-container">
+        <h1>Carrinho</h1>
+        <div id="cart-items">
+            <!-- Items will be dynamically loaded here -->
+        </div>
+        <div class="summary">
+            <p id="total-price">Total a pagar: R$ 0.00</p>
+            <p id="total-items">Itens: 0</p>
+            <p id="order-date">Data: --/--/----</p>
+        </div>
+        <div class="add-funcionario">
+            <label for="funcionario">Funcionário que ajudou:</label>
+            <select id="funcionario">
+                <!-- Funcionários will be dynamically loaded here -->
+            </select>
+        </div>
+        <div class="actions">
+            <button id="back-button" onclick="(()=>{window.location.href=`http://localhost:3001/`})()" class="btn yellow">Voltar</button>
+            <button id="finalize-button" class="btn red">Finalizar Compra</button>
+        </div>
+    </div>
+</body>
+</html>

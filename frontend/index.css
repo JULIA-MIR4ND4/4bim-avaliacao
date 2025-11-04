@@ -1,0 +1,215 @@
+/* RESET BÁSICO */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  /* BODY */
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: white;
+    color: #4a2d2d;
+    text-align: center;
+    line-height: 1.5;
+  }
+  
+
+  
+
+  
+  /* MENU PRINCIPAL */
+  .nav {
+    background: linear-gradient(90deg, #ff5c5c, #8b0000);
+    padding: 0.6rem 0;
+    box-shadow: 0 3px 8px rgba(139, 0, 0, 0.2);
+  }
+  
+  .nav__menu {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+  }
+  
+  .nav__menu-item {
+    position: relative;
+  }
+  
+  .nav__menu-item a {
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+  
+  .nav__menu-item a:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  
+  /* SUBMENU */
+  .nav__submenu {
+    list-style: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #e6b3b3;
+    border-radius: 6px;
+    display: none;
+    min-width: 180px;
+    box-shadow: 0 4px 10px rgba(139, 0, 0, 0.25);
+    text-align: left;
+    z-index: 10;
+  }
+  
+  .nav__submenu-item a {
+    color: #8b0000;
+    padding: 0.6rem 1rem;
+    display: block;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+  }
+  
+  .nav__submenu-item a:hover {
+    background: linear-gradient(135deg, #ff9999, #ff4d4d);
+    color: white;
+  }
+  
+  /* MOSTRAR SUBMENU */
+  .nav__menu-item:hover .nav__submenu {
+    display: block;
+  }
+  
+  /* BOTÃO PADRÃO */
+  button {
+    margin: 2rem;
+    padding: 0.8rem 1.8rem;
+    background: linear-gradient(135deg, #a83232, #d64545);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+  
+  button:hover {
+    background: linear-gradient(135deg, #d64545, #a83232);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(139, 0, 0, 0.3);
+  }
+  
+  /* RODAPÉ */
+  footer {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #ffeaea, #fff5f5);
+    border-top: 1px solid #e6b3b3;
+    color: #5d1a1a;
+  }
+  
+  /* MOSTRUÁRIO DE PRODUTOS */
+  .mostruario-produtos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+    padding: 2rem;
+  }
+  
+  /* CARDS DE PRODUTOS */
+  .produto-card {
+    background: linear-gradient(135deg, #fff0f0, #fffafa);
+    border: 1px solid #e6b3b3;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 6px 15px rgba(139, 0, 0, 0.1);
+    transition: transform 0.3s, box-shadow 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    height: 100%;
+  }
+  
+  .produto-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 10px 25px rgba(139, 0, 0, 0.25);
+  }
+  
+  .produto-card img {
+    max-width: 100%;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    transition: transform 0.3s;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+  }
+  
+  .produto-card img:hover {
+    transform: scale(1.05);
+  }
+  
+  .produto-card h4 {
+    font-size: 1.3rem;
+    color: #7a1e1e;
+    margin-bottom: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .produto-card p {
+    font-size: 1rem;
+    color: #4a2d2d;
+    margin-bottom: 0.8rem;
+  }
+  
+  .produto-card .preco {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #a83232;
+    margin-bottom: 1rem;
+  }
+  
+  .produto-card input.quantidade {
+    width: 100%;
+    margin-top: auto;
+    padding: 0.5rem;
+    border: 1px solid #d0a0a0;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+  }
+  
+  .produto-card input.quantidade:focus {
+    border-color: #ff6666;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 102, 102, 0.25);
+  }
+  
+  /* RESPONSIVIDADE */
+  @media (max-width: 768px) {
+    .nav__menu {
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+  
+    .mostruario-produtos {
+      padding: 1rem;
+    }
+  
+    button {
+      width: 90%;
+    }
+  
+    header h1 {
+      font-size: 1.6rem;
+    }
+  }
+  

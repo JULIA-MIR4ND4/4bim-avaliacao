@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Conta</title>
+    <link rel="stylesheet" href="/gerenciarConta/gerenciarConta.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <script defer src="/header.js"></script>
+  </head>
+  
+  <body>
+    <header id="header">
+      
+    </header>
+
+    <main>
+        <section class="info-section">
+            <h2>Informações da Conta</h2>
+            <form id="contaForm">
+                <div class="form-group">
+                    <label for="nome_pessoa">Nome:</label>
+                    <input type="text" id="nome_pessoa" name="nome_pessoa" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email_pessoa">Email:</label>
+                    <input type="email" id="email_pessoa" name="email_pessoa" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="data_nascimento_pessoa">Data de Nascimento:</label>
+                    <input type="date" id="data_nascimento_pessoa" name="data_nascimento_pessoa">
+                </div>
+
+                <div class="form-group">
+                    <label for="endereco">Endereço:</label>
+                    <input type="text" id="endereco" name="endereco">
+                </div>
+
+                <fieldset>
+                    <legend>Alterar Senha</legend>
+                    <div class="form-group">
+                        <label for="senha_atual">Senha Atual:</label>
+                        <input type="password" id="senha_atual" name="senha_atual">
+                    </div>
+                    <div class="form-group">
+                        <label for="nova_senha">Nova Senha:</label>
+                        <input type="password" id="nova_senha" name="nova_senha">
+                    </div>
+                </fieldset>
+
+                <div class="buttons">
+                    <button type="button" id="btnSalvar">Salvar Alterações</button>
+                    <button type="button" id="btnCancelar">Cancelar</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Gerenciar Conta</p>
+    </footer>
+
+    <div id="messageContainer" class="message-container"></div>
+    <script src="/gerenciarConta/gerenciarConta.js" defer></script>
+</body>
+</html>

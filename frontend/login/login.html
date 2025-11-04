@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Loja de Tênis - Login</title>
+  <link rel="stylesheet" href="login.css">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+  <div class="container">
+    <h2>Login</h2>
+
+    <div id="loginFrame" class="frame">
+      <input type="email" id="email" placeholder="Digite seu e-mail" required />
+      <button id="btnAvancar">Avançar</button>
+    </div>
+
+    <div id="senhaFrame" class="frame" style="display:none;">
+      <p id="nomeUsuario"></p>
+      <input type="password" id="senha" placeholder="Digite sua senha" required />
+      <button id="btnEntrar">Entrar</button>
+    </div>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>
