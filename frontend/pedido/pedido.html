@@ -4,10 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CRUD - Pedido</title>
+
+  <!-- Estilos principais -->
   <link rel="stylesheet" href="/pedido/pedido.css" />
   <link rel="stylesheet" href="/header.css" />
-  <script defer src="/header.js"></script>
+
+  <!-- Estilos da pesquisa dinâmica (tema vermelho) -->
+  <link rel="stylesheet" href="/pedido/pesquisaDinamicaStyle.css">
+
   <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+
+  <!-- Scripts -->
+  <script defer src="/header.js"></script>
+  <script defer src="/pedido/pesquisaDinamicaCliente.js"></script>
   <script defer src="/pedido/pedido.js"></script>
 </head>
 
@@ -17,12 +26,15 @@
   <main>
     <section class="form-section">
       <h2>Cadastro de Pedido</h2>
+
       <form id="pedidoForm">
+        <!-- 🔍 Área de busca por ID -->
         <div class="search-container">
-          <label for="searchPedidoId">Buscar por ID:</label>
+          <label for="searchId">Buscar por ID:</label>
           <div class="search-input-group">
-            <input type="number" id="searchPedidoId" placeholder="Digite o ID do pedido">
+            <input type="number" id="searchId" placeholder="Digite o ID do pedido">
             <button type="button" id="btnBuscar">🔍 Buscar</button>
+
             <button type="button" id="btnIncluir" class="btn-primary">Incluir</button>
             <button type="button" id="btnAlterar" class="btn-secondary" style="display:none;">Alterar</button>
             <button type="button" id="btnExcluir" class="btn-danger" style="display:none;">Excluir</button>
@@ -31,26 +43,81 @@
           </div>
         </div>
 
-        <fieldset>
+        <!-- 🧾 Dados do pedido -->
+        <fieldset id="formFields">
           <legend>Dados do Pedido</legend>
-          <div class="form-group">
-            <label for="data_do_pedido">Data do Pedido:</label>
-            <input type="date" id="data_do_pedido" required>
-          </div>
 
           <div class="form-group">
-            <label for="id_cliente">ID Cliente:</label>
-            <input type="number" id="id_cliente" required>
-          </div>
+            <label for="data_pedido" class="sr-only">Data do Pedido</label>
+            <input type="date" id="data_pedido" name="data_pedido" required>
 
-          <div class="form-group">
-            <label for="id_funcionario">ID Funcionário:</label>
-            <input type="number" id="id_funcionario" required>
+            <!-- 🔍 Busca dinâmica de cliente -->
+            <div class="containerBuscaDinamica">
+              <div class="search-bar-container">
+                <select id="searchType" class="search-select">
+                  <option value="cpf">CPF</option>
+                  <option value="nome">Nome</option>
+                </select>
+                <input
+                  type="text"
+                  id="cliente_pessoa_cpf_pessoa"
+                  name="cliente_pessoa_cpf_pessoa"
+                  placeholder="CPF ou nome do cliente..."
+                />
+              </div>
+              <ul id="resultsList" class="results-list"></ul>
+            </div>
+
+            <label for="funcionario_pessoa_cpf_pessoa" class="sr-only">CPF Funcionário</label>
+            <input
+              type="text"
+              id="funcionario_pessoa_cpf_pessoa"
+              name="funcionario_pessoa_cpf_pessoa"
+              placeholder="CPF ou nome do funcionário..."
+              required
+            >
           </div>
         </fieldset>
       </form>
+
+      <!-- 🛒 Itens do Pedido -->
+      <div class="itensDoPedido">
+        <div class="itens-header">
+          <h3>Itens do Pedido</h3>
+          <button type="button" id="btnAdicionarItem" onclick="adicionarItem()" class="btn-secondary btn-small">
+            + Adicionar Item
+          </button>
+        </div>
+
+        <div class="item-table-container">
+          <table id="itensTable">
+            <thead>
+              <tr>
+                <th>ID Pedido</th>
+                <th>ID Produto</th>
+                <th>Produto</th>
+                <th>Quantidade</th>
+                <th>Preço Unitário</th>
+                <th>Subtotal</th>
+                <th>Salvar</th>
+                <th>Excluir</th>
+              </tr>
+            </thead>
+            <tbody id="itensTableBody">
+              <!-- Itens carregados dinamicamente -->
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5" style="text-align:right"><strong>Valor Total:</strong></td>
+                <td colspan="3" id="valorTotal">0,00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </section>
 
+    <!-- 📋 Lista de pedidos -->
     <section class="list-section">
       <h2>Lista de Pedidos</h2>
       <table id="pedidosTable">
@@ -61,7 +128,7 @@
             <th>Cliente</th>
             <th>Funcionário</th>
             <th>Valor</th>
-            <th>Status Pagamento</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody id="pedidosTableBody"></tbody>

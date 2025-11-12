@@ -1,0 +1,105 @@
+/* === Estilos para a busca dinâmica === */
+
+/* Contêiner principal da busca */
+.containerBuscaDinamica {
+    background: #fff;
+    padding: 10px 0;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 100%;
+    text-align: left;
+}
+
+/* Barra de busca */
+.search-bar-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 2px solid #ff4d4d; /* vermelho principal */
+    border-radius: 8px;
+    background: #fff;
+    position: relative;
+    overflow: visible;
+    transition: 0.3s;
+}
+
+.search-bar-container:focus-within {
+    box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
+}
+
+/* Select da busca */
+.search-select {
+    border: none;
+    padding: 10px 14px;
+    background-color: #ffeaea; /* vermelho bem claro */
+    font-size: 16px;
+    cursor: pointer;
+    border-right: 2px solid #ff4d4d;
+    outline: none;
+    height: 100%;
+    color: #cc0000;
+    font-weight: 600;
+}
+
+/* Input ocupa TODO o espaço restante */
+#cliente_pessoa_cpf_pessoa {
+    flex: 1;
+    border: none;
+    padding: 10px;
+    font-size: 16px;
+    outline: none;
+    background: #fff;
+    min-width: 0;
+    color: #333;
+}
+
+/* Lista de resultados */
+.results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid #ff9999;
+    border-radius: 6px;
+    background-color: #fff;
+    box-shadow: 0 6px 18px rgba(255, 77, 77, 0.2);
+    width: 100%;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 1000;
+    display: none;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+/* Quando visível */
+.results-list.show {
+    display: block;
+}
+
+/* Itens da lista */
+.results-list li {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #ffeaea;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: 0.2s;
+}
+
+.results-list li:hover {
+    background-color: #fff2f2;
+    color: #cc0000;
+}
+
+/* Texto dentro dos itens */
+.results-list li span {
+    font-weight: 500;
+    color: #555;
+}
+
+/* Ícone ou destaque */
+.results-list li strong {
+    color: #cc0000;
+}

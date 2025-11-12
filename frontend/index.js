@@ -5,7 +5,7 @@ let pedidoId;
 // Adicionar lógica para criar um pedido e atualizar o id_pedido_atual
 async function nomeUsuario() {
   const combobox = document.getElementById("oUsuario");
-  const primeiraOpcao = combobox.options[0];
+  const primeiraOpcao = combobox && combobox.options && combobox.options[0];
 
   try {
     const res = await fetch('http://localhost:3001/login/verificaSeUsuarioEstaLogado', {
@@ -35,7 +35,7 @@ async function nomeUsuario() {
 
           // Atualizar o id_pedido_atual da pessoa
           await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               id_pessoa: data.id_pessoa,
@@ -50,27 +50,22 @@ async function nomeUsuario() {
       } else {
         console.log('Pedido atual já existe:', data.id_pedido_atual);
       }
-    } else {
+    } else if (primeiraOpcao) {
       primeiraOpcao.text = "Fazer Login"; // fallback
     }
 
   } catch (err) {
     console.error(err);
-    primeiraOpcao.text = "Fazer Login";
+    if (primeiraOpcao) primeiraOpcao.text = "Fazer Login";
   }
 }
 
-// Chame a função quando a página carregar
-window.onload = nomeUsuario;
+// Chame a função quando a página carregar (não sobrescreve outros handlers)
+document.addEventListener('DOMContentLoaded', nomeUsuario);
 
 async function usuarioAutorizado() {
-  
   const rota = API_BASE_URL + '/login/verificaSeUsuarioEstaLogado';
-  alert('Rota: ' + rota);
-  
   const res = await fetch(rota, { credentials: 'include' });
-  alert(JSON.stringify(data));
-
   const data = await res.json();
   if (data.status === 'ok') {
     document.getElementById('boasVindas').innerText =
@@ -99,30 +94,42 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function carregarProdutosMostruario() {
-
     const response = await fetch(`${API_BASE_URL}/produto/`);
     const produtos = await response.json();
-  
 
-    const res = await fetch('http://localhost:3001/login/verificaSeUsuarioEstaLogado', {
+    const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
       method: 'POST',
-      credentials: 'include' // MUITO IMPORTANTE: envia cookies
+      credentials: 'include' // envia cookies
     });
     const data = await res.json();
-    let prodPedido;
-    if(data.status === 'ok'){
+
+    // Prepare defaults
+    let prodPedido = [];
+    let prodPedido2 = {};
+    let idsProdutos = [];
+
+    if (data && data.status === 'ok') {
       pedidoId = data.id_pedido_atual;
       temquantidade = true;
-      prodPedido = await fetch(`${API_BASE_URL}/pedido/produtos/${data.id_pedido_atual}`);
-      prodPedido = await prodPedido.json();
-      console.log(prodPedido)
-      if(prodPedido.error) prodPedido = []
-      prodPedido2 = {}
+
+      const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${data.id_pedido_atual}`);
+      if (itemsRes.ok) {
+        const itemsJson = await itemsRes.json();
+        if (Array.isArray(itemsJson)) prodPedido = itemsJson;
+      } else {
+        // no items for this order or 404 -> keep prodPedido as empty array
+        prodPedido = [];
+      }
+
+      console.log('prodPedido:', prodPedido);
+
+      prodPedido2 = {};
       idsProdutos = prodPedido.map(item => {
-        prodPedido2[item.id_tenis] = item.quantidade
-        return  item.id_tenis }
-      )
+        prodPedido2[item.id_tenis] = item.quantidade;
+        return item.id_tenis;
+      });
     }
+
     renderizarProdutos(produtos, prodPedido2, idsProdutos);
     
 }

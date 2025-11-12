@@ -17,21 +17,18 @@ exports.listarPedidos = async (req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT 
-      p.id_pedido,
-      p.data_do_pedido,
-      cli.id_pessoa AS id_cliente,
-      pesCli.nome_pessoa AS nome_cliente,
-      func.id_pessoa AS id_funcionario,
-      pesFunc.nome_pessoa AS nome_funcionario,
-      pg.valor_total_pagamento,
-        pg.status_pagamento
+        p.id_pedido,
+        p.data_do_pedido,
+        p.id_cliente,
+        pesCli.nome_pessoa AS nome_cliente,
+        p.id_funcionario,
+        pesFunc.nome_pessoa AS nome_funcionario
       FROM Pedido p
-      JOIN Cliente cli ON cli.id_pessoa = p.id_cliente
-      JOIN Pessoa pesCli ON pesCli.id_pessoa = cli.id_pessoa
-      JOIN Funcionario func ON func.id_pessoa = p.id_funcionario
-      JOIN Pessoa pesFunc ON pesFunc.id_pessoa = func.id_pessoa
-      LEFT JOIN Pagamento pg ON p.id_pedido = pg.id_pedido
-      ORDER BY p.id_pedido
+      LEFT JOIN Cliente cli ON cli.id_pessoa = p.id_cliente
+      LEFT JOIN Pessoa pesCli ON pesCli.id_pessoa = p.id_cliente
+      LEFT JOIN Funcionario func ON func.id_pessoa = p.id_funcionario
+      LEFT JOIN Pessoa pesFunc ON pesFunc.id_pessoa = p.id_funcionario
+      ORDER BY p.id_pedido DESC
     `);
     res.status(200).json(rows);
   } catch (error) {
@@ -53,10 +50,8 @@ exports.buscarPedidoPorId = async (req, res) => {
         p.id_funcionario,
         pesFunc.nome_pessoa AS nome_funcionario
       FROM Pedido p
-      JOIN Cliente cli ON cli.id_pessoa = p.id_cliente
-      JOIN Pessoa pesCli ON pesCli.id_pessoa = cli.id_pessoa
-      JOIN Funcionario func ON func.id_pessoa = p.id_funcionario
-      JOIN Pessoa pesFunc ON pesFunc.id_pessoa = func.id_pessoa
+      LEFT JOIN Pessoa pesCli ON pesCli.id_pessoa = p.id_cliente
+      LEFT JOIN Pessoa pesFunc ON pesFunc.id_pessoa = p.id_funcionario
       WHERE p.id_pedido = $1
     `, [id]);
 
@@ -187,8 +182,8 @@ exports.inserirOuAtualizarProdutosNoPedido = async (req, res) => {
     // Inicia uma transação
     await req.db.query('BEGIN');
     
-    // Remove os produtos existentes do pedido (se for uma atualização)
-    await req.db.query('DELETE FROM PedidoHasTenis WHERE id_pedido = $1', [id_pedido]);
+  // Remove os produtos existentes do pedido (se for uma atualização)
+  await req.db.query('DELETE FROM pedidohastenis WHERE id_pedido = $1', [id_pedido]);
     
     console.log(req.body.produtos[0]);
     // Insere os novos produtos
@@ -201,7 +196,7 @@ exports.inserirOuAtualizarProdutosNoPedido = async (req, res) => {
       }
       
       await req.db.query(
-        'INSERT INTO PedidoHasTenis (id_tenis, id_pedido, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)',
         [id_tenis, id_pedido, quantidade, preco_unitario]
       );
     }

@@ -89,6 +89,11 @@ const produtoRoutes = require('./routes/produtoRoute');
 app.use('/produto', produtoRoutes);
 const uploadRoutes = require('./routes/uploadRoutes');
 app.use('/upload', uploadRoutes);
+
+// IMPORTANTE: /pedido/produtos DEVE vir ANTES de /pedido
+const pedidoHasProdutoRoutes = require('./routes/pedido_has_produtoRoutes');
+app.use('/pedido/produtos', pedidoHasProdutoRoutes);
+
 const pedidoRoutes = require('./routes/pedidoRoutes');
 app.use('/pedido', pedidoRoutes);
 const carrinhoRoutes = require('./routes/carrinhoRoutes');

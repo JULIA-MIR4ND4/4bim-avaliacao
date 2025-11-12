@@ -1,5 +1,26 @@
 const { query } = require('../database');
 
+// Listar todos os clientes com dados de pessoa
+exports.listarClientes = async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT 
+        c.id_pessoa,
+        p.nome_pessoa,
+        c.renda_cliente,
+        c.data_de_cadastro_cliente
+      FROM cliente c
+      JOIN pessoa p ON c.id_pessoa = p.id_pessoa
+      ORDER BY p.nome_pessoa
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar clientes:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
 // Obter cliente pelo id_pessoa
 exports.obterCliente = async (req, res) => {
   try {
