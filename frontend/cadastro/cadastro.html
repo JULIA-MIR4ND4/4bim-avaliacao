@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Cadastro - Loja de Tênis</title>
+  <link rel="stylesheet" href="/cadastro/cadastro.css">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+</head>
+<body>
+  <main class="cadastro-container">
+    <h2>Crie sua conta</h2>
+
+    <form id="formCadastro" class="cadastro-form" onsubmit="return false;">
+      <label for="nome">Nome completo</label>
+      <input id="nome" type="text" placeholder="Seu nome completo" required>
+
+      <label for="email">E-mail</label>
+      <input id="email" type="email" placeholder="seu@exemplo.com" required>
+
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" placeholder="Mínimo 6 caracteres" required>
+
+      <label for="renda">Renda mensal (R$)</label>
+      <input id="renda" type="number" step="0.01" placeholder="0.00" required>
+
+      <button id="btnFinalizar" onclick="finalizarCadastro()">Finalizar cadastro</button>
+    </form>
+
+    <p class="link-login">Já tem conta? <a href="/login/login">Faça login</a></p>
+  </main>
+
+  <script src="/cadastro/cadastro.js"></script>
+</body>
+</html>

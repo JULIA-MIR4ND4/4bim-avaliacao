@@ -1,0 +1,31 @@
+/* cadastro.css - estilo simples e moderno para a tela de cadastro */
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --primary:#2b6cb0;
+  --muted:#6b7280;
+}
+body{
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  margin:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+}
+.cadastro-container{
+  background:var(--card);
+  padding:28px 32px;
+  border-radius:8px;
+  box-shadow:0 6px 18px rgba(11,23,40,0.08);
+  width:360px;
+}
+.cadastro-container h2{ margin:0 0 12px 0; color:var(--primary) }
+.cadastro-form{ display:flex; flex-direction:column; gap:10px }
+.cadastro-form input{ padding:10px; border:1px solid #e5e7eb; border-radius:6px }
+.cadastro-form label{ font-size:13px; color:var(--muted) }
+button#btnFinalizar{ margin-top:8px; background:var(--primary); color:white; padding:10px; border:none; border-radius:6px; cursor:pointer }
+button#btnFinalizar:hover{ opacity:0.95 }
+.link-login{ margin-top:12px; font-size:14px; color:var(--muted); text-align:center }
+.link-login a{ color:var(--primary); text-decoration:none }

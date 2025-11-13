@@ -21,9 +21,26 @@
       <input type="password" id="senha" placeholder="Digite sua senha" required />
       <button id="btnEntrar">Entrar</button>
     </div>
-    <p style="text-align:center; margin-top:12px;">Ainda não tem conta? <a href="/cadastro.html">Cadastre-se aqui</a></p>
+    <p style="text-align:center; margin-top:12px;">Ainda não tem conta? <a id="cadastroLink" href="/cadastro-form">Cadastre-se aqui</a></p>
   </div>
 
   <script src="login.js"></script>
+  <script>
+    (function(){
+      // Se a página estiver sendo servida de uma origem diferente do backend,
+      // força o link de cadastro a apontar para o backend (evita 404 do Live Server)
+      try {
+        var backend = 'http://localhost:3001';
+        var link = document.getElementById('cadastroLink');
+        if (!link) return;
+        var backendOrigin = new URL(backend).origin;
+        if (window.location.origin !== backendOrigin) {
+          link.href = backend + '/cadastro-form';
+        }
+      } catch (e) {
+        console.error('Erro ao ajustar link de cadastro:', e);
+      }
+    })();
+  </script>
 </body>
 </html>

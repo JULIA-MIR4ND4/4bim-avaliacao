@@ -56,6 +56,21 @@ app.use((req, res, next) => {
 // Middlewares
 app.use(express.json());
 
+// Rota para abrir página de cadastro (fallback GET) - DEVE vir ANTES de outras rotas
+app.get('/cadastro-form', (req, res) => {
+  const arquivo = path.join(__dirname, '../frontend/cadastro/cadastro.html');
+  res.sendFile(arquivo, (err) => {
+    if (err) {
+      console.error('Erro ao enviar arquivo /cadastro-form:', err);
+      // Se for ENOENT (arquivo não encontrado), envie 404; senão 500
+      if (err.code === 'ENOENT') {
+        return res.status(404).json({ error: 'Arquivo não encontrado', message: arquivo, timestamp: new Date().toISOString() });
+      }
+      return res.status(500).json({ error: 'Erro ao enviar o arquivo de cadastro', message: err.message, timestamp: new Date().toISOString() });
+    }
+  });
+});
+
 // Middleware de tratamento de erros JSON malformado
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
