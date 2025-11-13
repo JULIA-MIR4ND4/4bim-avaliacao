@@ -162,11 +162,13 @@ async function buscarPessoa() {
             preencherFormulario(pessoa);
             mostrarBotoes(true, false, true, true, false, false);
             mostrarMensagem('Pessoa encontrada!', 'success');
+            alert('Pessoa encontrada!');
         } else if (response.status === 404) {
             limparFormulario();
             searchId.value = id;
             mostrarBotoes(true, true, false, false, false, false);
             mostrarMensagem('Pessoa não encontrada. Você pode incluir uma nova pessoa.', 'info');
+            alert('Pessoa não encontrada. Você pode incluir uma nova pessoa.');
         }
 
         // Verifica funcionário
@@ -195,9 +197,10 @@ async function buscarPessoa() {
             document.getElementById('data_de_cadastro_cliente').value = '';
         }
 
-    } catch (error) {
+        } catch (error) {
         console.error('Erro ao buscar pessoa:', error);
         mostrarMensagem('Erro ao buscar pessoa', 'error');
+        alert('Erro ao buscar pessoa. Veja o console para mais detalhes.');
     }
 }
 
@@ -295,6 +298,7 @@ async function salvarOperacao() {
             }
 
             mostrarMensagem('Pessoa incluída com sucesso!', 'success');
+            alert('Pessoa incluída com sucesso!');
 
         } else if (operacao === 'alterar') {
             await fetch(`${API_BASE_URL}/pessoa/${currentPersonId}`, {
@@ -328,12 +332,14 @@ async function salvarOperacao() {
             }
 
             mostrarMensagem('Pessoa alterada com sucesso!', 'success');
+            alert('Pessoa alterada com sucesso!');
 
         } else if (operacao === 'excluir') {
             await fetch(`${API_BASE_URL}/cliente/${currentPersonId}`, { method: 'DELETE' });
             await fetch(`${API_BASE_URL}/funcionario/${currentPersonId}`, { method: 'DELETE' });
             await fetch(`${API_BASE_URL}/pessoa/${currentPersonId}`, { method: 'DELETE' });
             mostrarMensagem('Pessoa excluída com sucesso!', 'success');
+            alert('Pessoa excluída com sucesso!');
         }
 
         limparFormulario();
@@ -345,6 +351,7 @@ async function salvarOperacao() {
     } catch (error) {
         console.error('Erro:', error);
         mostrarMensagem('Erro na operação', 'error');
+        alert('Erro na operação. Veja o console para mais detalhes.');
     }
 }
 
@@ -355,6 +362,7 @@ function cancelarOperacao() {
     bloquearCampos(false);
     searchId.focus();
     mostrarMensagem('Operação cancelada', 'info');
+    alert('Operação cancelada');
 }
 
 // Carregar lista de pessoas
@@ -368,6 +376,7 @@ async function carregarPessoas() {
     } catch (error) {
         console.error('Erro:', error);
         mostrarMensagem('Erro ao carregar lista de pessoas', 'error');
+        alert('Erro ao carregar lista de pessoas. Veja o console para mais detalhes.');
     }
 }
 
