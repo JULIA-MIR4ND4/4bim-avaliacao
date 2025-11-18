@@ -24,7 +24,7 @@ exports.listarPessoas = async (req, res) => {
 exports.criarPessoa = async (req, res) => {
   try {
     const { id_pessoa, nome_pessoa, email_pessoa, senha_pessoa, data_nascimento_pessoa, endereco } = req.body;
-
+console.log(req.body)
     if (!nome_pessoa || !email_pessoa || !senha_pessoa) {
       return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
     }

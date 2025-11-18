@@ -31,9 +31,19 @@ exports.obterFuncionario = async (req, res) => {
 exports.criarFuncionario = async (req, res) => {
   try {
     const { id_pessoa, salario, cargo_id_cargo, porcentagem_comissao } = req.body;
+
+    // CORREÇÃO: Trata string vazia ("") para null em campos numéricos
+    const salarioTratado = salario === '' ? null : salario;
+    const cargoIdTratado = cargo_id_cargo === '' ? null : cargo_id_cargo;
+    const comissaoTratada = porcentagem_comissao === '' ? null : porcentagem_comissao;
+
+    if (!id_pessoa) {
+        return res.status(400).json({ error: 'ID da pessoa é obrigatório para criar funcionário' });
+    }
+
     const result = await query(
       'INSERT INTO funcionario (id_pessoa, salario, cargo_id_cargo, porcentagem_comissao) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id_pessoa, salario, cargo_id_cargo, porcentagem_comissao]
+      [id_pessoa, salarioTratado, cargoIdTratado, comissaoTratada]
     );
 
     res.status(201).json(result.rows[0]);
