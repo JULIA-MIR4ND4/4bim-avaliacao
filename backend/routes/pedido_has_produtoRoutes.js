@@ -8,11 +8,12 @@ const pedido_has_produtoController = require('../controllers/pedido_has_produtoC
 // GET /pedido/produtos - Listar todos os itens de pedidos
 router.get('/', pedido_has_produtoController.listarProdutosDoPedido);
 
+// ⚠️ IMPORTANTE: rota mais específica deve vir primeiro
+// GET /pedido/produtos/:idPedido/:idProduto - Obter item específico
+router.get('/:idPedido/:idProduto', pedido_has_produtoController.obterItemDoPedido);
+
 // GET /pedido/produtos/:idPedido - Obter todos os itens de um pedido específico
 router.get('/:idPedido', pedido_has_produtoController.obterItensDoPedido);
-
-// GET /pedido/produtos/:idPedido/:idProduto - Obter um item específico do pedido (chave composta)
-router.get('/:idPedido/:idProduto', pedido_has_produtoController.obterItemDoPedido);
 
 // POST /pedido/produtos - Criar novo item de pedido
 router.post('/', pedido_has_produtoController.criarItemDoPedido);

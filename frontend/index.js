@@ -195,9 +195,25 @@ async function carregarProdutosMostruario() {
 // objeto que guarda as quantidades selecionadas na página de produtos
 const pedido = {};
 
+// Preenche o pedido com quantidades iniciais (quando volta ao menu)
+function setQuantidadeInicial(produtoId, quantidade, preco_unitario) {
+  const q = parseInt(quantidade) || 0;
+  if (q > 0) {
+    pedido[produtoId] = { quantidade: q, preco_unitario };
+  } else {
+    // se zero, garantir inexistência no pedido local (não envia)
+    if (pedido[produtoId]) delete pedido[produtoId];
+  }
+}
+
 function handleQuantidadeChange(event, produtoId, preco_unitario) {
   const novaQuantidade = parseInt(event.target.value) || 0;
-  pedido[produtoId] = {quantidade: novaQuantidade, preco_unitario: preco_unitario};
+  if (novaQuantidade > 0) {
+    pedido[produtoId] = {quantidade: novaQuantidade, preco_unitario: preco_unitario};
+  } else {
+    // se zerou, remove do objeto local
+    if (pedido[produtoId]) delete pedido[produtoId];
+  }
   console.log('pedido (local):', pedido);
 }
 
@@ -234,7 +250,8 @@ async function handleContinuar() {
     const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_pedido: pedidoId, produtos })
+      body: JSON.stringify({ id_pedido: pedidoId, produtos }),
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -243,6 +260,7 @@ async function handleContinuar() {
     }
 
     console.log('Produtos salvos com sucesso no pedido!');
+    // redireciona para a rota do carrinho
     window.location.href = "http://localhost:3001/carrinho";
   } catch (error) {
     console.error('Erro no handleContinuar:', error);
@@ -271,7 +289,7 @@ function renderizarProdutos(produtos, prodPedido2, idsProdutos) {
       ${imagem}
       <h4>${produto.nome_tenis}</h4>
       <p>Tamanho: ${produto.tamanho_disponivel || '-'}</p>
-      <p>Quantidade: ${produto.quantidade_em_estoque}</p>
+      <p>Quantidade em estoque: ${produto.quantidade_em_estoque}</p>
       <p class="preco">R$ ${produto.preco_unitario.toFixed(2)}</p>
     `;
 
@@ -282,6 +300,9 @@ function renderizarProdutos(produtos, prodPedido2, idsProdutos) {
     inputQuantidade.min = 0;
     inputQuantidade.max = produto.quantidade_em_estoque;
     inputQuantidade.value = quantidade;
+
+    // Set initial local pedido state
+    setQuantidadeInicial(produto.id_tenis, quantidade, produto.preco_unitario);
 
     // Adiciona o evento de mudança
     inputQuantidade.addEventListener('change', (e) => handleQuantidadeChange(e, produto.id_tenis, produto.preco_unitario));
