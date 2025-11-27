@@ -1,3 +1,4 @@
+// frontend/index.js (arquivo completo, com correções para permitir adicionar vários tipos de tênis)
 const API_BASE_URL = 'http://localhost:3001';
 let ehProfessor = false;
 let temquantidade = false;
@@ -20,6 +21,7 @@ async function criarPedidoEAtualizarPessoa(idPessoa) {
     const novoPedidoRes = await fetch(`${API_BASE_URL}/pedido`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         data_do_pedido: new Date().toISOString().split('T')[0],
         id_cliente: idPessoa,
@@ -39,6 +41,7 @@ async function criarPedidoEAtualizarPessoa(idPessoa) {
     const atualizarRes = await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         id_pessoa: idPessoa,
         id_pedido: novoId
@@ -187,6 +190,14 @@ async function carregarProdutosMostruario() {
         prodPedido2[item.id_tenis] = item.quantidade;
         return item.id_tenis;
       });
+
+      // Preenche o objeto pedido local com os itens existentes (quantidade > 0)
+      prodPedido.forEach(it => {
+        pedido[it.id_tenis] = {
+          quantidade: it.quantidade,
+          preco_unitario: it.preco_unitario
+        };
+      });
     }
 
     renderizarProdutos(produtos, prodPedido2, idsProdutos);
@@ -196,25 +207,95 @@ async function carregarProdutosMostruario() {
 const pedido = {};
 
 // Preenche o pedido com quantidades iniciais (quando volta ao menu)
+// agora garante que exista a entrada no pedido (quantidade 0) para todos os produtos renderizados
 function setQuantidadeInicial(produtoId, quantidade, preco_unitario) {
-  const q = parseInt(quantidade) || 0;
+  const q = parseInt(quantidade);
+
+  // Se já existe no banco, carrega normalmente
   if (q > 0) {
     pedido[produtoId] = { quantidade: q, preco_unitario };
+    return;
+  }
+
+  // Se o produto ainda não estava no pedido (quantidade=0),
+  // ele deve ser considerado 0 mas DEVE existir no objeto para que funcione a adição depois
+  if (!pedido[produtoId]) {
+    pedido[produtoId] = {
+      quantidade: 0,
+      preco_unitario
+    };
   } else {
-    // se zero, garantir inexistência no pedido local (não envia)
-    if (pedido[produtoId]) delete pedido[produtoId];
+    // atualiza apenas o preco caso exista
+    pedido[produtoId].preco_unitario = preco_unitario;
+    if (pedido[produtoId].quantidade == null) pedido[produtoId].quantidade = 0;
   }
 }
 
 function handleQuantidadeChange(event, produtoId, preco_unitario) {
-  const novaQuantidade = parseInt(event.target.value) || 0;
-  if (novaQuantidade > 0) {
-    pedido[produtoId] = {quantidade: novaQuantidade, preco_unitario: preco_unitario};
-  } else {
-    // se zerou, remove do objeto local
-    if (pedido[produtoId]) delete pedido[produtoId];
-  }
+  // usa 'input' ou 'change' — parseInt pode resultar NaN se vazio
+  const val = event.target.value;
+  const novaQuantidade = val === '' ? 0 : parseInt(val, 10);
+  pedido[produtoId] = {
+    quantidade: isNaN(novaQuantidade) ? 0 : novaQuantidade,
+    preco_unitario
+  };
+  // apenas para debug
   console.log('pedido (local):', pedido);
+}
+
+// Envia apenas UM produto ao backend (upsert). Usado pelo botão "Adicionar".
+async function enviarProdutoIndividual(idPedido, idTenis, quantidade, precoUnitario) {
+  try {
+    // se quantidade é 0 -> enviar remoção (quantidade 0 será tratada no backend)
+    const produtos = [{
+      id_tenis: parseInt(idTenis),
+      quantidade: parseInt(quantidade),
+      preco_unitario: parseFloat(precoUnitario)
+    }];
+
+    const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id_pedido: idPedido, produtos })
+    });
+
+    if (!response.ok) {
+      const txt = await response.text();
+      console.error('Erro ao enviar produto individual:', txt);
+      return false;
+    }
+
+    // Atualiza estado local com sucesso: se quantidade>0 atualiza/insere, se 0 remove
+    if (produtos[0].quantidade > 0) {
+      pedido[idTenis] = { quantidade: produtos[0].quantidade, preco_unitario: produtos[0].preco_unitario };
+    } else {
+      delete pedido[idTenis];
+    }
+
+    // opcional: atualizar a lista de produtos do pedido no front buscando do servidor
+    // (garante total sincronizado)
+    try {
+      const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${idPedido}`);
+      if (itemsRes.ok) {
+        const itemsJson = await itemsRes.json();
+        // atualiza pedido com o que há no servidor
+        // limpa e repopula
+        Object.keys(pedido).forEach(k => delete pedido[k]);
+        itemsJson.forEach(it => {
+          pedido[it.id_tenis] = { quantidade: it.quantidade, preco_unitario: it.preco_unitario };
+        });
+      }
+    } catch (e) {
+      // se der problema, não é crítico
+      console.warn('Falha ao re-buscar itens após inserção:', e);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Erro enviarProdutoIndividual:', err);
+    return false;
+  }
 }
 
 async function handleContinuar() {
@@ -270,7 +351,6 @@ async function handleContinuar() {
   }
 }
 
-
 function renderizarProdutos(produtos, prodPedido2, idsProdutos) {
   mostruarioProdutos.innerHTML = ''; // limpa o container
   produtos.forEach(produto => {
@@ -304,10 +384,53 @@ function renderizarProdutos(produtos, prodPedido2, idsProdutos) {
     // Set initial local pedido state
     setQuantidadeInicial(produto.id_tenis, quantidade, produto.preco_unitario);
 
-    // Adiciona o evento de mudança
-    inputQuantidade.addEventListener('change', (e) => handleQuantidadeChange(e, produto.id_tenis, produto.preco_unitario));
+    // usa 'input' para capturar digitação sem precisar perder foco
+    inputQuantidade.addEventListener('input', (e) => handleQuantidadeChange(e, produto.id_tenis, produto.preco_unitario));
 
-    card.appendChild(inputQuantidade);
+    // Botão rápido para adicionar somente este produto ao pedido/DB (resolve "preciso ir ao carrinho e voltar")
+    const btnAdicionar = document.createElement('button');
+    btnAdicionar.className = 'btn-adicionar';
+    btnAdicionar.innerText = 'Adicionar';
+
+    btnAdicionar.addEventListener('click', async () => {
+      // garante pedidoId
+      if (!pedidoId) {
+        const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.status !== 'ok') {
+          alert('Você precisa estar logado para adicionar produtos.');
+          return;
+        }
+        pedidoId = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
+        if (!pedidoId) {
+          alert('Erro ao garantir pedido. Tente novamente.');
+          return;
+        }
+      }
+
+      // pega a quantidade atual do input (pode ser 0)
+      const q = inputQuantidade.value === '' ? 0 : parseInt(inputQuantidade.value, 10) || 0;
+
+      // envia apenas esse produto
+      const ok = await enviarProdutoIndividual(pedidoId, produto.id_tenis, q, produto.preco_unitario);
+      if (ok) {
+        // feedback simples
+        btnAdicionar.innerText = 'Adicionado ✓';
+        setTimeout(() => btnAdicionar.innerText = 'Adicionar', 900);
+      } else {
+        alert('Erro ao adicionar o produto. Veja o console.');
+      }
+    });
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'produto-actions';
+    wrapper.appendChild(inputQuantidade);
+    wrapper.appendChild(btnAdicionar);
+
+    card.appendChild(wrapper);
     mostruarioProdutos.appendChild(card);
   });
 }

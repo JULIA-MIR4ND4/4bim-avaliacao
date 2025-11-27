@@ -1,4 +1,6 @@
 // pedido_has_produtoController.js - Adaptado para o projeto do usuário
+// Rotas: /pedido/produtos (equivalente a /pedido_has_produto do professor)
+
 const { query } = require('../database');
 const path = require('path');
 
@@ -22,7 +24,7 @@ exports.obterItensDoPedido = async (req, res) => {
   try {
     const { idPedido } = req.params;
     const idPedidoNum = parseInt(idPedido);
-
+    
     if (isNaN(idPedidoNum)) {
       return res.status(400).json({ error: 'ID do pedido inválido' });
     }
@@ -95,20 +97,26 @@ exports.obterItemDoPedido = async (req, res) => {
 
 /**
  * Criar novo item de pedido (POST /pedido/produtos)
- * Corrigido: permite quantidade = 0 e remove item automaticamente
+ * Aceita dois formatos:
+ * 1. { id_pedido, produtos: [{id_tenis, quantidade, preco_unitario}...] } (novo/professor)
+ * 2. { pedido_id_pedido, produto_id_produto, quantidade, preco_unitario } (antigo)
  */
 exports.criarItemDoPedido = async (req, res) => {
   try {
     console.log('[POST /pedido/produtos] Recebido:', JSON.stringify(req.body));
 
+    // Formato 1: { id_pedido, produtos: [...] }
     if (req.body.id_pedido && Array.isArray(req.body.produtos)) {
       const { id_pedido, produtos } = req.body;
+      
+      if (!Array.isArray(produtos) || produtos.length === 0) {
+        return res.status(400).json({ error: 'Array de produtos deve ter pelo menos um item' });
+      }
 
       const produto = produtos[0];
       const { id_tenis, quantidade, preco_unitario } = produto;
 
-      // ❗ CORREÇÃO PRINCIPAL: antes usava !quantidade → quantidade 0 virava erro
-      if (id_tenis === undefined || quantidade === undefined || preco_unitario === undefined) {
+      if (!id_tenis || !quantidade || preco_unitario === undefined) {
         return res.status(400).json({
           error: 'Cada produto deve conter: id_tenis, quantidade, preco_unitario'
         });
@@ -119,16 +127,11 @@ exports.criarItemDoPedido = async (req, res) => {
       const qtd = parseInt(quantidade);
       const preco = parseFloat(preco_unitario);
 
-      // 🔥 Se a quantidade for ZERO → remover item automaticamente
-      if (qtd === 0) {
-        await query(
-          'DELETE FROM pedidohastenis WHERE id_pedido = $1 AND id_tenis = $2',
-          [pedidoId, produtoId]
-        );
-        console.log('[POST] quantidade 0 → item removido');
-        return res.status(200).json({ message: 'Item removido (quantidade zero)' });
+      if (isNaN(pedidoId) || isNaN(produtoId) || isNaN(qtd) || isNaN(preco)) {
+        return res.status(400).json({ error: 'Formato de dados inválido' });
       }
 
+      // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
       const result = await query(
         `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)
@@ -139,28 +142,69 @@ exports.criarItemDoPedido = async (req, res) => {
         [produtoId, pedidoId, qtd, preco]
       );
 
-      console.log('[POST /pedido/produtos] Item criado/atualizado:', result.rows[0]);
+      console.log('[POST /pedido/produtos] Item criado (formato novo):', result.rows[0]);
       return res.status(201).json(result.rows[0]);
     }
 
-    return res.status(400).json({ error: 'Formato inválido' });
+    // Formato 2: { pedido_id_pedido, produto_id_produto, quantidade, preco_unitario }
+    const { pedido_id_pedido, produto_id_produto, quantidade, preco_unitario } = req.body;
 
+    if (!pedido_id_pedido || !produto_id_produto || !quantidade || preco_unitario === undefined) {
+      return res.status(400).json({
+        error: 'Todos os campos são obrigatórios: pedido_id_pedido, produto_id_produto, quantidade, preco_unitario.'
+      });
+    }
+
+    const pedidoId = parseInt(pedido_id_pedido);
+    const produtoId = parseInt(produto_id_produto);
+    const qtd = parseInt(quantidade);
+    const preco = parseFloat(preco_unitario);
+
+    if (isNaN(pedidoId) || isNaN(produtoId) || isNaN(qtd) || isNaN(preco)) {
+      return res.status(400).json({ error: 'Formato de dados inválido. IDs e quantidade devem ser números inteiros, preço deve ser numérico.' });
+    }
+
+    // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
+    const result = await query(
+      `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id_tenis, id_pedido)
+       DO UPDATE SET quantidade = EXCLUDED.quantidade,
+                     preco_unitario = EXCLUDED.preco_unitario
+       RETURNING id_pedido, id_tenis, quantidade, preco_unitario`,
+      [produtoId, pedidoId, qtd, preco]
+    );
+
+    console.log('[POST /pedido/produtos] Item criado (formato antigo):', result.rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao criar item do pedido:', error);
+
+    if (error.code === '23503') {
+      return res.status(400).json({
+        error: 'O ID do pedido ou do produto não existe.'
+      });
+    }
+
     res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
 
 /**
- * Atualizar item do pedido (PUT)
+ * Atualizar item do pedido (PUT /pedido/produtos/:idPedido/:idProduto)
  */
 exports.atualizarItemDoPedido = async (req, res) => {
   try {
     const { idPedido, idProduto } = req.params;
     const { quantidade, preco_unitario } = req.body;
+    console.log(`[PUT /pedido/produtos/${idPedido}/${idProduto}] Atualizando item`, { quantidade, preco_unitario });
 
     const idPedidoNum = parseInt(idPedido);
     const idProdutoNum = parseInt(idProduto);
+
+    if (isNaN(idPedidoNum) || isNaN(idProdutoNum)) {
+      return res.status(400).json({ error: 'IDs devem ser números válidos' });
+    }
 
     const existsResult = await query(
       'SELECT * FROM pedidohastenis WHERE id_pedido = $1 AND id_tenis = $2',
@@ -171,14 +215,23 @@ exports.atualizarItemDoPedido = async (req, res) => {
       return res.status(404).json({ error: 'Item do pedido não encontrado' });
     }
 
+    const updatedFields = {};
+    if (quantidade !== undefined) updatedFields.quantidade = parseInt(quantidade);
+    if (preco_unitario !== undefined) updatedFields.preco_unitario = parseFloat(preco_unitario);
+
+    if (Object.keys(updatedFields).length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo válido para atualizar' });
+    }
+
     const updateResult = await query(
       `UPDATE pedidohastenis 
        SET quantidade = $1, preco_unitario = $2
        WHERE id_pedido = $3 AND id_tenis = $4
        RETURNING id_pedido, id_tenis, quantidade, preco_unitario`,
-      [quantidade, preco_unitario, idPedidoNum, idProdutoNum]
+      [updatedFields.quantidade, updatedFields.preco_unitario, idPedidoNum, idProdutoNum]
     );
 
+    console.log('[PUT /pedido/produtos] Item atualizado:', updateResult.rows[0]);
     res.json(updateResult.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar item do pedido:', error);
@@ -187,23 +240,42 @@ exports.atualizarItemDoPedido = async (req, res) => {
 };
 
 /**
- * Deletar item
+ * Deletar item do pedido (DELETE /pedido/produtos/:idPedido/:idProduto)
  */
 exports.deletarItemDoPedido = async (req, res) => {
   try {
     const { idPedido, idProduto } = req.params;
+    console.log(`[DELETE /pedido/produtos/${idPedido}/${idProduto}] Deletando item`);
 
     const idPedidoNum = parseInt(idPedido);
     const idProdutoNum = parseInt(idProduto);
+
+    if (isNaN(idPedidoNum) || isNaN(idProdutoNum)) {
+      return res.status(400).json({ error: 'IDs devem ser números válidos.' });
+    }
+
+    const existsResult = await query(
+      'SELECT * FROM pedidohastenis WHERE id_pedido = $1 AND id_tenis = $2',
+      [idPedidoNum, idProdutoNum]
+    );
+
+    if (existsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Item do pedido não encontrado.' });
+    }
 
     const deleteResult = await query(
       'DELETE FROM pedidohastenis WHERE id_pedido = $1 AND id_tenis = $2',
       [idPedidoNum, idProdutoNum]
     );
 
-    res.status(204).send();
+    if (deleteResult.rowCount > 0) {
+      console.log('[DELETE /pedido/produtos] Item deletado com sucesso');
+      res.status(204).send();
+    } else {
+      res.status(404).json({ error: 'Item do pedido não encontrado para exclusão.' });
+    }
   } catch (error) {
     console.error('Erro ao deletar item do pedido:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
