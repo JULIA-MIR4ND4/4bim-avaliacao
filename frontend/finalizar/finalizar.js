@@ -1,6 +1,4 @@
-// Removendo a importação do QRCode e utilizando um script externo no HTML
-
-// Função para gerar QR Code
+// frontend/finalizar.js (pequenas melhorias)
 async function gerarQRCode(data) {
     return new Promise((resolve, reject) => {
         QRCode.toDataURL(data, (err, url) => {
@@ -115,6 +113,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (userData.status === 'ok') {
                 await registrarPagamento(userData.id_pedido_atual, 1, userData.id_pessoa); // 1 para Cartão de Crédito
+            } else {
+                alert('Você precisa estar logado para pagar.');
             }
         } else {
             alert('Número do cartão ou CPF inválido.');
@@ -130,6 +130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (userData.status === 'ok') {
             await registrarPagamento(userData.id_pedido_atual, 3, userData.id_pessoa); // 3 para Pix
+        } else {
+            alert('Você precisa estar logado para pagar.');
         }
     });
 
@@ -170,5 +172,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Adiciona o botão Pix Pago fora do qrcode-container
-    document.getElementById("opcao-pix").appendChild(pixPagoButton);
+    const opcaoPixContainer = document.getElementById("opcao-pix");
+    if (opcaoPixContainer) opcaoPixContainer.appendChild(pixPagoButton);
 });

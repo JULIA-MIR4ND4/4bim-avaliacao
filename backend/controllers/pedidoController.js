@@ -1,3 +1,4 @@
+// backend/controllers/pedidoController.js
 const db = require('../database');
 const path = require('path');
 
@@ -63,13 +64,13 @@ exports.buscarPedidoPorId = async (req, res) => {
   }
 };
 
-// Ajustar a função inserirPedido para retornar o ID do pedido criado
+// Ajustar a função inserirPedido para forçar funcionário = 100 (vendedor online)
 exports.inserirPedido = async (req, res) => {
   try {
-    let { data_do_pedido, id_cliente, id_funcionario } = req.body;
-    if (!id_funcionario) {
-      id_funcionario = "-1";
-    }
+    let { data_do_pedido, id_cliente } = req.body;
+
+    // FORÇAR SEMPRE o id_funcionario = 100
+    const id_funcionario = 100;  
 
     const result = await db.query(
       `INSERT INTO Pedido (data_do_pedido, id_cliente, id_funcionario)
@@ -158,8 +159,12 @@ exports.buscarProdutosDoPedido = async (req, res) => {
           p.preco_unitario
       FROM pedidohastenis pp
       JOIN produto p ON pp.id_tenis = p.id_tenis
-      WHERE pp.id_pedido = $1;
+      WHERE pp.id_pedido = $1
+      ORDER BY pp.id_tenis;
     `, [id]);
+
+    // Se quiser retornar array vazio em vez de 404, descomente abaixo:
+    // return res.status(200).json(rows);
 
     if (rows.length === 0) return res.status(404).json({ error: 'Nenhum produto encontrado para este pedido' });
 
@@ -178,40 +183,41 @@ exports.inserirOuAtualizarProdutosNoPedido = async (req, res) => {
     if (!id_pedido || !Array.isArray(produtos) || produtos.length === 0) {
       return res.status(400).json({ error: 'ID do pedido e lista de produtos são obrigatórios' });
     }
-    
-    // Inicia uma transação
-    await req.db.query('BEGIN');
-    
-  // Remove os produtos existentes do pedido (se for uma atualização)
-  await req.db.query('DELETE FROM pedidohastenis WHERE id_pedido = $1', [id_pedido]);
-    
-    console.log(req.body.produtos[0]);
-    // Insere os novos produtos
-    for (const produto of produtos) {
-      const { id_tenis, quantidade, preco_unitario } = produto;
-      
-      if (!id_tenis || !quantidade || !preco_unitario) {
-        await req.db.query('ROLLBACK');
-        return res.status(400).json({ error: 'Cada produto deve conter id_tenis, quantidade e preco_unitario' });
-      }
-      
-      await req.db.query(
-        'INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)',
-        [id_tenis, id_pedido, quantidade, preco_unitario]
-      );
-    }
 
-    // Confirma a transação
-    await req.db.query('COMMIT');
+    // Usa a função transaction exportada do database.js para garantir BEGIN/COMMIT/ROLLBACK
+    await db.transaction(async (client) => {
+      // Remove os produtos existentes do pedido (se for uma atualização)
+      await client.query('DELETE FROM pedidohastenis WHERE id_pedido = $1', [id_pedido]);
+      
+      // Insere os novos produtos
+      for (const produto of produtos) {
+        const { id_tenis, quantidade, preco_unitario } = produto;
+        
+        if (id_tenis === undefined || quantidade === undefined || preco_unitario === undefined) {
+          // Lança erro para acionar o ROLLBACK na transaction
+          throw new Error('Cada produto deve conter id_tenis, quantidade e preco_unitario');
+        }
+        
+        // Verificações adicionais de tipo
+        const idTenisNum = parseInt(id_tenis);
+        const qtdNum = parseInt(quantidade);
+        const precoNum = parseFloat(preco_unitario);
+        if (isNaN(idTenisNum) || isNaN(qtdNum) || isNaN(precoNum)) {
+          throw new Error('Dados de produto inválidos (id_tenis, quantidade ou preco_unitario inválidos)');
+        }
+        
+        await client.query(
+          'INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)',
+          [idTenisNum, id_pedido, qtdNum, precoNum]
+        );
+      }
+    });
 
     res.status(200).json({ message: 'Produtos inseridos ou atualizados com sucesso no pedido!' });
   } catch (error) {
     console.error('Erro ao inserir ou atualizar produtos no pedido:', error);
-
-    // Reverte a transação em caso de erro
-    await req.db.query('ROLLBACK');
-
-    res.status(500).json({ error: 'Erro ao inserir ou atualizar produtos no pedido' });
+    // db.transaction já faz rollback; aqui apenas retornamos erro ao cliente
+    const msg = error.message || 'Erro ao inserir ou atualizar produtos no pedido';
+    res.status(500).json({ error: msg });
   }
 };
-

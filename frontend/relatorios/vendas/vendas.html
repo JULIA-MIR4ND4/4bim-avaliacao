@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Vendas - Loja de Tênis</title>
+    <link rel="stylesheet" href="../../header.css"> <!-- Assumindo que o header.css está na raiz do frontend -->
+    <link rel="stylesheet" href="vendas.css">
+    <!-- Incluir Chart.js para os gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <header>
+        <!-- Conteúdo do cabeçalho (logo, navegação ) - será implementado no próximo passo -->
+    </header>
+
+    <main class="container">
+        <section id="report-header">
+            <h1>Relatório de Vendas</h1>
+            <h2 id="report-period">Período: Todos os Pedidos</h2>
+            <button id="print-button" title="Imprimir Relatório">
+                <!-- Ícone da impressora (será adicionado via CSS ou SVG) -->
+                <img src="../../imagens/printer-icon.svg" alt="Imprimir" style="width: 24px; height: 24px;">
+            </button>
+        </section>
+
+        <section id="filters-and-summary">
+            <div id="filters">
+                <div class="filter-group">
+                    <label for="date-start">Data Inicial:</label>
+                    <input type="date" id="date-start">
+                </div>
+                <div class="filter-group">
+                    <label for="date-end">Data Final:</label>
+                    <input type="date" id="date-end">
+                </div>
+                <div class="filter-group">
+                    <label for="payment-method">Forma de Pagamento:</label>
+                    <select id="payment-method">
+                        <option value="">Todas</option>
+                        <option value="Cartão">Cartão</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="status-filter">Status:</label>
+                    <select id="status-filter">
+                        <option value="">Todos</option>
+                        <option value="Confirmado">Confirmado</option>
+                        <option value="Pendente">Pendente</option>
+                        <option value="Cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div class="filter-group search-group">
+                    <label for="text-search">Buscar Produto/Cliente:</label>
+                    <input type="text" id="text-search" placeholder="Ex: Air Max ou Cliente 1">
+                </div>
+                <button id="apply-filters-button">Aplicar Filtros</button>
+            </div>
+            <div id="summary-charts">
+                <div class="chart-container">
+                    <h3>Vendas por Dia (Últimos 7 Dias)</h3>
+                    <canvas id="salesByDayChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Participação por Forma de Pagamento</h3>
+                    <canvas id="paymentMethodChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="sales-data">
+            <div id="table-controls">
+                <button id="export-csv-button">Exportar CSV</button>
+            </div>
+            <table id="sales-table">
+                <thead>
+                    <tr>
+                        <th data-sort="id">ID</th>
+                        <th data-sort="data">Data e Hora</th>
+                        <th data-sort="cliente">Cliente</th>
+                        <th data-sort="produto">Produto</th>
+                        <th>Número</th>
+                        <th>Quantidade</th>
+                        <th data-sort="precoUnit">Preço Unitário</th>
+                        <th data-sort="total">Total do Pedido</th>
+                        <th>Forma de Pagamento</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="sales-table-body">
+                    <!-- Linhas de pedidos serão inseridas aqui -->
+                </tbody>
+                <tfoot id="sales-table-footer">
+                    <!-- Linha de totais será inserida aqui -->
+                </tfoot>
+            </table>
+            <div id="pagination-controls">
+                <!-- Controles de paginação serão inseridos aqui -->
+            </div>
+            <p id="no-orders-message" style="display: none;">Nenhum pedido registrado.</p>
+        </section>
+    </main>
+
+    <script src="vendas.js"></script>
+</body>
+</html>

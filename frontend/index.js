@@ -1,14 +1,92 @@
 const API_BASE_URL = 'http://localhost:3001';
 let ehProfessor = false;
 let temquantidade = false;
-let pedidoId;
+let pedidoId = null; // ID de pedido validado/garantido
+
+// Helper: verifica se pedido existe (GET /pedido/:id). Retorna true/false.
+async function verificaPedidoExiste(idPedido) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/pedido/${idPedido}`);
+    return res.ok;
+  } catch (err) {
+    console.error('Erro ao verificar pedido:', err);
+    return false;
+  }
+}
+
+// Helper: cria novo pedido (POST /pedido) e atualiza pessoa.id_pedido_atual (PATCH /pessoa/atualizarPedidoAtual)
+async function criarPedidoEAtualizarPessoa(idPessoa) {
+  try {
+    const novoPedidoRes = await fetch(`${API_BASE_URL}/pedido`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data_do_pedido: new Date().toISOString().split('T')[0],
+        id_cliente: idPessoa,
+        id_funcionario: null
+      })
+    });
+
+    if (!novoPedidoRes.ok) {
+      console.error('Falha ao criar pedido (status):', novoPedidoRes.status);
+      return null;
+    }
+
+    const novoPedido = await novoPedidoRes.json();
+    const novoId = novoPedido.id_pedido;
+
+    // Atualiza o id_pedido_atual da pessoa
+    const atualizarRes = await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_pessoa: idPessoa,
+        id_pedido: novoId
+      })
+    });
+
+    if (!atualizarRes.ok) {
+      console.warn('Pedido criado, mas falha ao atualizar pessoa.id_pedido_atual');
+      // ainda assim retornamos o id do pedido criado
+    }
+
+    return novoId;
+  } catch (err) {
+    console.error('Erro ao criar pedido e atualizar pessoa:', err);
+    return null;
+  }
+}
+
+// Função que garante que o usuário tem um pedido válido: retorna id_pedido existente ou criado.
+async function garantirPedidoValido(idPessoa, idPedidoAtual) {
+  // Se não tem id_pedido_atual, cria um novo e atualiza pessoa
+  if (!idPedidoAtual) {
+    const novoId = await criarPedidoEAtualizarPessoa(idPessoa);
+    pedidoId = novoId;
+    return novoId;
+  }
+
+  // Se tem id_pedido_atual, verificar se o pedido existe no banco
+  const existe = await verificaPedidoExiste(idPedidoAtual);
+  if (existe) {
+    pedidoId = idPedidoAtual;
+    return idPedidoAtual;
+  }
+
+  // Se não existe (pedido apagado ou finalizado), crie um novo e atualize pessoa
+  console.warn(`id_pedido_atual ${idPedidoAtual} não existe no banco — criando novo pedido.`);
+  const novoId = await criarPedidoEAtualizarPessoa(idPessoa);
+  pedidoId = novoId;
+  return novoId;
+}
+
 // Adicionar lógica para criar um pedido e atualizar o id_pedido_atual
 async function nomeUsuario() {
   const combobox = document.getElementById("oUsuario");
   const primeiraOpcao = combobox && combobox.options && combobox.options[0];
 
   try {
-    const res = await fetch('http://localhost:3001/login/verificaSeUsuarioEstaLogado', {
+    const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
       method: 'POST',
       credentials: 'include' // MUITO IMPORTANTE: envia cookies
     });
@@ -16,40 +94,16 @@ async function nomeUsuario() {
     const data = await res.json();
 
     if (data.status === 'ok') {
-      primeiraOpcao.text = data.nome; // usuário logado
-      if (!data.id_pedido_atual) {
-        // Criar um novo pedido
-        const novoPedidoRes = await fetch(`${API_BASE_URL}/pedido`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            data_do_pedido: new Date().toISOString().split('T')[0],
-            id_cliente: data.id_pessoa,
-            id_funcionario: null
-          })
-        });
-        console.log(novoPedidoRes)
+      if (primeiraOpcao) primeiraOpcao.text = data.nome; // usuário logado
 
-        if (novoPedidoRes.ok) {
-          const novoPedido = await novoPedidoRes.json();
-
-          // Atualizar o id_pedido_atual da pessoa
-          await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id_pessoa: data.id_pessoa,
-              id_pedido: novoPedido.id_pedido
-            })
-          });
-
-          console.log('Novo pedido criado e id_pedido_atual atualizado:', novoPedido);
-        } else {
-          console.error('Erro ao criar novo pedido');
-        }
+      // Garantir que exista um pedido válido para o usuário
+      const idPedidoValido = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
+      if (idPedidoValido) {
+        console.log('Pedido válido garantido:', idPedidoValido);
       } else {
-        console.log('Pedido atual já existe:', data.id_pedido_atual);
+        console.error('Não foi possível garantir um pedido válido para o usuário.');
       }
+
     } else if (primeiraOpcao) {
       primeiraOpcao.text = "Fazer Login"; // fallback
     }
@@ -109,17 +163,22 @@ async function carregarProdutosMostruario() {
     let idsProdutos = [];
 
     if (data && data.status === 'ok') {
-      pedidoId = data.id_pedido_atual;
+      // Garante/atualiza pedidoId (verifica existência no DB e cria se necessário)
+      const idPedidoValido = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
+      pedidoId = idPedidoValido;
       temquantidade = true;
 
-      const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${data.id_pedido_atual}`);
-      if (itemsRes.ok) {
-        const itemsJson = await itemsRes.json();
-        if (Array.isArray(itemsJson)) prodPedido = itemsJson;
-      } else {
-        // no items for this order or 404 -> keep prodPedido as empty array
-        prodPedido = [];
+      let itemsJson = [];
+      if (pedidoId) {
+        const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`);
+        if (itemsRes.ok) {
+          itemsJson = await itemsRes.json();
+        } else {
+          itemsJson = []; // nada no pedido
+        }
       }
+
+      prodPedido = Array.isArray(itemsJson) ? itemsJson : [];
 
       console.log('prodPedido:', prodPedido);
 
@@ -131,24 +190,46 @@ async function carregarProdutosMostruario() {
     }
 
     renderizarProdutos(produtos, prodPedido2, idsProdutos);
-    
 }
 
+// objeto que guarda as quantidades selecionadas na página de produtos
 const pedido = {};
 
 function handleQuantidadeChange(event, produtoId, preco_unitario) {
-  const novaQuantidade = parseInt(event.target.value);
+  const novaQuantidade = parseInt(event.target.value) || 0;
   pedido[produtoId] = {quantidade: novaQuantidade, preco_unitario: preco_unitario};
-  console.log(pedido);
+  console.log('pedido (local):', pedido);
 }
 
 async function handleContinuar() {
   try {
+    // Garante que existe um pedido válido antes de enviar produtos
+    if (!pedidoId) {
+      // refetch do usuário e garantia do pedido
+      const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        pedidoId = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
+      }
+    }
+
+    if (!pedidoId) {
+      throw new Error('Não foi possível criar/obter pedido antes de continuar.');
+    }
+
     const produtos = Object.entries(pedido).map(([id_tenis, detalhes]) => ({
       id_tenis: parseInt(id_tenis),
-      quantidade: detalhes.quantidade, // Corrige para acessar diretamente a quantidade
-      preco_unitario: detalhes.preco_unitario // Corrige para acessar diretamente o preço unitário
-    }));
+      quantidade: detalhes.quantidade || 0,
+      preco_unitario: detalhes.preco_unitario
+    })).filter(p => p.quantidade > 0); // só enviar produtos com quantidade > 0
+
+    if (produtos.length === 0) {
+      alert('Nenhum produto selecionado.');
+      return;
+    }
 
     const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
       method: 'POST',
@@ -157,13 +238,16 @@ async function handleContinuar() {
     });
 
     if (!response.ok) {
-      throw new Error('Erro ao salvar os produtos no pedido');
+      const text = await response.text();
+      throw new Error('Erro ao salvar os produtos no pedido: ' + text);
     }
 
     console.log('Produtos salvos com sucesso no pedido!');
     window.location.href = "http://localhost:3001/carrinho";
   } catch (error) {
     console.error('Erro no handleContinuar:', error);
+    alert('Erro ao salvar o carrinho. Tente novamente.');
+    // redireciona mesmo assim para carrinho (opcional)
     window.location.href = "http://localhost:3001/carrinho";
   }
 }

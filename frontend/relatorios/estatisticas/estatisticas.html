@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estatísticas de Vendas - Loja de Tênis</title>
+    <link rel="stylesheet" href="estatisticas.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Estatísticas de Vendas</h1>
+            <div class="controls">
+                <label for="periodo">Período:</label>
+                <select id="periodo">
+                    <option value="7d">Últimos 7 dias</option>
+                    <option value="30d">Últimos 30 dias</option>
+                    <option value="current_month">Mês atual</option>
+                    <option value="custom">Intervalo customizado</option>
+                </select>
+                <input type="date" id="data-inicio" style="display: none;">
+                <input type="date" id="data-fim" style="display: none;">
+
+                <label for="agrupamento">Agrupar Receita por:</label>
+                <select id="agrupamento">
+                    <option value="day">Dia</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mês</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="summary-panel">
+            <div class="card" id="card-pedidos">
+                <h3>Total de Pedidos</h3>
+                <p class="metric-value" id="total-pedidos">0</p>
+            </div>
+            <div class="card" id="card-arrecadado">
+                <h3>Total Arrecadado</h3>
+                <p class="metric-value" id="total-arrecadado">R$ 0,00</p>
+            </div>
+            <div class="card" id="card-top-produto">
+                <h3>Top 1 Produto</h3>
+                <p class="metric-value" id="top-produto-nome">Nenhum</p>
+                <p class="metric-sub-value" id="top-produto-qtd">0 unidades</p>
+            </div>
+            <div class="card" id="card-ticket-medio">
+                <h3>Ticket Médio</h3>
+                <p class="metric-value" id="ticket-medio">R$ 0,00</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <section class="ranking-section">
+                <h2>Ranking dos 10 Modelos Mais Vendidos</h2>
+                <canvas id="rankingChart"></canvas>
+            </section>
+
+            <aside class="side-charts">
+                <section class="payment-section">
+                    <h2>Formas de Pagamento</h2>
+                    <canvas id="paymentChart"></canvas>
+                </section>
+
+                <section class="size-section">
+                    <h2>Vendas por Tamanho</h2>
+                    <canvas id="sizeChart"></canvas>
+                </section>
+            </aside>
+        </div>
+
+        <section class="timeline-section">
+            <h2>Receita ao Longo do Tempo</h2>
+            <canvas id="timelineChart"></canvas>
+        </section>
+
+        <div class="export-buttons">
+            <button id="export-pdf">Exportar PDF</button>
+            <button id="export-csv">Exportar CSV</button>
+        </div>
+    </div>
+
+    <!-- Ícone de Impressora -->
+    <button id="print-button" title="Imprimir relatório">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+            <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+        </svg>
+    </button>
+
+    <!-- Modal de Detalhes do Produto -->
+    <div id="product-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 id="modal-title">Detalhes do Produto</h2>
+            <div class="modal-body">
+                <div class="modal-chart">
+                    <h3>Histórico de Vendas Diárias</h3>
+                    <canvas id="modal-sales-chart"></canvas>
+                </div>
+                <div class="modal-table">
+                    <h3>Maiores Tamanhos Vendidos</h3>
+                    <table id="modal-size-table">
+                        <thead>
+                            <tr><th>Tamanho</th><th>Quantidade</th></tr>
+                        </thead>
+                        <tbody>
+                            <!-- Conteúdo injetado por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="estatisticas.js"></script>
+</body>
+</html>
