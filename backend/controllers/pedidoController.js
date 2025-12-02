@@ -66,6 +66,7 @@ exports.buscarPedidoPorId = async (req, res) => {
 
 // Ajustar a função inserirPedido para forçar funcionário = 100 (vendedor online)
 exports.inserirPedido = async (req, res) => {
+  console.log('Corpo da requisição para inserir pedido:', req.body);
   try {
     let { data_do_pedido, id_cliente } = req.body;
 

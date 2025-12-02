@@ -279,3 +279,58 @@ exports.deletarItemDoPedido = async (req, res) => {
     res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
+
+///////////////////////////////////////////////////////////////////////////
+// 🔥 FUNÇÃO ADICIONADA: CRIAR MÚLTIPLOS ITENS EM LOTE
+// POST /pedido/produtos/lote
+///////////////////////////////////////////////////////////////////////////
+exports.criarItensPedidoEmLote = async (req, res) => {
+  console.log("⚡ Rota criarItensPedidoEmLote chamada");
+
+  try {
+    const itens = req.body;
+
+    if (!Array.isArray(itens) || itens.length === 0) {
+      return res.status(400).json({ error: 'Envie um ARRAY com itens.' });
+    }
+
+    let values = [];
+    let placeholders = [];
+    let index = 1;
+
+    for (const item of itens) {
+      if (!item.id_pedido || !item.id_tenis || !item.quantidade || !item.preco_unitario) {
+        return res.status(400).json({
+          error: 'Cada item deve conter: id_pedido, id_tenis, quantidade, preco_unitario'
+        });
+      }
+
+      values.push(item.id_pedido, item.id_tenis, item.quantidade, item.preco_unitario);
+
+      placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++})`);
+    }
+
+    const sql = `
+      INSERT INTO pedidohastenis
+      (id_pedido, id_tenis, quantidade, preco_unitario)
+      VALUES ${placeholders.join(', ')}
+      RETURNING *
+    `;
+
+    const result = await query(sql, values);
+
+    res.status(201).json({
+      message: `${result.rowCount} itens inseridos com sucesso!`,
+      itens: result.rows
+    });
+
+  } catch (error) {
+    console.error("Erro no lote:", error);
+
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Item duplicado encontrado.' });
+    }
+
+    res.status(500).json({ error: 'Erro ao inserir lote.' });
+  }
+};

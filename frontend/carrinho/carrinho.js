@@ -8,148 +8,194 @@ document.addEventListener('DOMContentLoaded', async () => {
   const totalItemsElement = document.getElementById('total-items');
   const orderDateElement = document.getElementById('order-date');
   const funcionarioWrapper = document.querySelector('.add-funcionario');
-  const funcionarioSelect = document.getElementById('funcionario');
   const backButton = document.getElementById('back-button');
   const finalizeButton = document.getElementById('finalize-button');
 
-  // Oculta o seletor de funcionário, pois será fixo (ID 100)
+  // Oculta o seletor de funcionário
   if (funcionarioWrapper) {
     funcionarioWrapper.style.display = 'none';
   }
 
-  // Helper: garante que existe um pedido válido (mesma lógica do index.js)
-  async function garantirPedidoValidoFront() {
+  // Helper: pega dados do usuário logado (status, id_pessoa, id_pedido_atual)
+  async function getUsuarioLogado() {
     try {
       const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
         method: 'POST',
         credentials: 'include'
       });
       const data = await res.json();
-      if (data.status !== 'ok') return null;
+      if (data && data.status === 'ok') return data;
+      return null;
+    } catch (err) {
+      console.error('Erro ao obter usuário logado:', err);
+      return null;
+    }
+  }
 
-      // Verifica se pedido existe
-      let pedidoId = data.id_pedido_atual;
+  // Função: garantir pedido válido (NÃO CRIA automaticamente; só retorna se já existe)
+  async function garantirPedidoValidoFront() {
+    try {
+      const data = await getUsuarioLogado();
+      if (!data) return null;
+      const pedidoId = data.id_pedido_atual;
       if (pedidoId) {
+        // verifica se o pedido realmente existe (GET /pedido/:id)
         const pedidoRes = await fetch(`${API_BASE_URL}/pedido/${pedidoId}`);
         if (pedidoRes.ok) return pedidoId;
       }
-
-      // Se não existe, criar e atualizar a pessoa
-      const criarRes = await fetch(`${API_BASE_URL}/pedido`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data_do_pedido: new Date().toISOString().split('T')[0],
-          id_cliente: data.id_pessoa,
-          id_funcionario: null
-        }),
-        credentials: 'include'
-      });
-      if (!criarRes.ok) return null;
-      const novoPedido = await criarRes.json();
-      const novoId = novoPedido.id_pedido;
-
-      // Atualiza pessoa
-      await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_pessoa: data.id_pessoa, id_pedido: novoId }),
-        credentials: 'include'
-      });
-
-      return novoId;
+      // NÃO CRIAR AQUI — criação será feita no envio do primeiro item
+      return null;
     } catch (err) {
       console.error('Erro ao garantir pedido válido:', err);
       return null;
     }
   }
 
-  // ======= FUNÇÃO CORRIGIDA (ÚNICA ALTERAÇÃO DO ARQUIVO) =======
-  // ======= FUNÇÃO CORRIGIDA (ÚNICA ALTERAÇÃO DO ARQUIVO) =======
-async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitario) {
-
-    // Evita enviar dados incompletos para o backend
-    if (idTenis == null || quantidade == null || precoUnitario == null) {
+  // ------------ FUNÇÃO DE ENVIAR ITEM (CORRIGIDA E MELHORADA) -----------
+  /**
+   * Envia uma atualização de item para o backend.
+   * Se idPedido for nulo/undefined, cria um pedido para o usuário (uma só vez),
+   * atualiza pessoa.id_pedido_atual e passa a usar esse id.
+   *
+   * Retorno:
+   * - número do idPedido usado em caso de sucesso (ex: 116)
+   * - false em caso de erro
+   */
+  async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitario) {
+    try {
+      if (idTenis == null || quantidade == null || precoUnitario == null) {
         console.error("Dados incompletos ao atualizar item:", { idTenis, quantidade, precoUnitario });
         return false;
-    }
+      }
 
-    // 👉 NOVO: se quantidade = 0, CHAMAR DELETE (rota correta do backend)
-    if (quantidade === 0) {
-        try {
-            const response = await fetch(
-                `http://localhost:3001/pedido/produtos/${idPedido}/${idTenis}`,
-                {
-                    method: "DELETE",
-                }
-            );
-
-            if (!response.ok) {
-                const erro = await response.text();
-                console.error("Erro ao remover item:", erro);
-                return false;
-            }
-
-            return true;
-
-        } catch (err) {
-            console.error("Erro inesperado ao remover item:", err);
-            return false;
+      // Se não houver idPedido, criamos um (apenas no primeiro envio)
+      let currentPedidoId = idPedido;
+      if (!currentPedidoId) {
+        // pega usuário logado
+        const usuario = await getUsuarioLogado();
+        if (!usuario) {
+          console.error('Usuário não está logado; não é possível criar pedido.');
+          return false;
         }
-    }
 
-    // 👉 Mantém o POST existente para adicionar / atualizar
-    const body = {
-        id_pedido: idPedido,
-        produtos: [
-            {
-                id_tenis: idTenis,
-                quantidade: quantidade,
-                preco_unitario: precoUnitario
-            }
-        ]
-    };
-
-    try {
-        const response = await fetch("http://localhost:3001/pedido/produtos", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
+        // Cria pedido no backend
+        const criarRes = await fetch(`${API_BASE_URL}/pedido`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            data_do_pedido: new Date().toISOString().split('T')[0],
+            id_cliente: usuario.id_pessoa,
+            id_funcionario: null
+          })
         });
 
-        if (!response.ok) {
-            const erro = await response.text();
-            console.error("Erro ao atualizar item:", erro);
-            return false;
+        if (!criarRes.ok) {
+          const texto = await criarRes.text();
+          console.error('Erro ao criar pedido:', texto);
+          return false;
         }
 
-        return true;
+        const novoPedido = await criarRes.json();
+        currentPedidoId = novoPedido.id_pedido;
 
-    } catch (err) {
-        console.error("Erro inesperado:", err);
+        // Atualiza pessoa.id_pedido_atual para o novo pedido
+        await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ id_pessoa: usuario.id_pessoa, id_pedido: currentPedidoId })
+        });
+
+        console.log('Pedido criado automaticamente e pessoa atualizada. id_pedido:', currentPedidoId);
+      }
+
+      // Caso remoção (quantidade 0) — se não houver pedido, nada a remover
+      if (quantidade === 0) {
+        if (!currentPedidoId) {
+          // nada para remover
+          return currentPedidoId || true;
+        }
+        const deleteRes = await fetch(`${API_BASE_URL}/pedido/produtos/${currentPedidoId}/${idTenis}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        if (!deleteRes.ok) {
+          const errTxt = await deleteRes.text();
+          console.error('Erro ao remover item:', errTxt);
+          return false;
+        }
+        return currentPedidoId;
+      }
+
+      // Inserção/atualização de item (POST /pedido/produtos)
+      const body = {
+        id_pedido: currentPedidoId,
+        produtos: [
+          {
+            id_tenis: idTenis,
+            quantidade: quantidade,
+            preco_unitario: precoUnitario
+          }
+        ]
+      };
+
+      const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const erro = await response.text();
+        console.error("Erro ao atualizar item:", erro);
         return false;
+      }
+
+      // sucesso — retorna o id do pedido usado (útil para quem chamou)
+      return currentPedidoId;
+    } catch (err) {
+      console.error("Erro inesperado em enviarAtualizacaoItem:", err);
+      return false;
     }
-}
-// =============================================================
-
-  // =============================================================
-
+  }
+  // ----------------------------------------------------------------------
 
   try {
-    const pedidoId = await garantirPedidoValidoFront();
-    if (!pedidoId) {
-      throw new Error('Não foi possível garantir um pedido válido para exibir o carrinho.');
-    }
+    // Tenta obter id do pedido atual (SE existir). NÃO cria pedido automaticamente.
+    let pedidoId = await garantirPedidoValidoFront();
+    // pedidoId pode ser null aqui — será criado ao enviar o primeiro item
 
-    // Busca itens do pedido
-    const response = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`, { credentials: 'include' });
+    // =============================================================
+    // 🔵 ENVIA OS ITENS DO LOCALSTORAGE PARA O BACKEND (CORREÇÃO PRINCIPAL)
+    // Se o usuário adicionou itens antes de logar/abrir o carrinho, salvamos agora.
+    let carrinhoLocal = JSON.parse(localStorage.getItem("carrinho")) || [];
+
+    if (carrinhoLocal.length > 0) {
+      for (const item of carrinhoLocal) {
+        const resultado = await enviarAtualizacaoItem(pedidoId, item.id_tenis, item.quantidade, item.preco_unitario);
+        if (!resultado) {
+          console.error('Falha ao enviar item do localStorage para o backend:', item);
+          // continuar com próximos itens (não interrompe todo o loop)
+          continue;
+        }
+        // resultado contém o pedidoId (novo ou existente) — atualiza para próximos envios
+        if (typeof resultado === 'number') pedidoId = resultado;
+      }
+      // só removemos se pelo menos tentamos enviar (evita perda caso o backend falhe sempre)
+      localStorage.removeItem("carrinho");
+    }
+    // =============================================================
+
+    // Buscar itens do pedido no backend (usar o pedidoId atual; se nulo, backend retornará vazio)
     let cartItems = [];
-    if (response.ok) {
-      cartItems = await response.json();
+    if (pedidoId) {
+      const response = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`, { credentials: 'include' });
+      if (response.ok) cartItems = await response.json();
+      else cartItems = [];
     } else {
-      cartItems = []; // pedido vazio
+      cartItems = []; // sem pedido ainda
     }
 
     let itemsState = Array.isArray(cartItems) ? cartItems.slice() : [];
@@ -157,10 +203,12 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
     function recalcularResumo() {
       let totalPrice = 0;
       let totalItems = 0;
+
       itemsState.forEach(it => {
         totalPrice += (it.preco_unitario * it.quantidade);
         totalItems += it.quantidade;
       });
+
       totalPriceElement.textContent = `Total a pagar: R$ ${totalPrice.toFixed(2)}`;
       totalItemsElement.textContent = `Itens: ${totalItems}`;
       orderDateElement.textContent = `Data: ${new Date().toLocaleString()}`;
@@ -207,38 +255,31 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
       itemElement.appendChild(preco);
       itemElement.appendChild(btnRemove);
 
-      // BOTÃO +
+      // Botão +
       btnPlus.addEventListener('click', async () => {
         const novoQ = parseInt(qtyDisplay.innerText) + 1;
 
-        const success = await enviarAtualizacaoItem(
-          pedidoId,
-          item.id_tenis,
-          novoQ,
-          item.preco_unitario
-        );
-        if (!success) return;
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
 
         qtyDisplay.innerText = novoQ;
         item.quantidade = novoQ;
         const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
         if (idx >= 0) itemsState[idx].quantidade = novoQ;
+
         preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
         recalcularResumo();
       });
 
-      // BOTÃO –
+      // Botão -
       btnMinus.addEventListener('click', async () => {
         const atual = parseInt(qtyDisplay.innerText);
         const novoQ = Math.max(0, atual - 1);
 
-        const success = await enviarAtualizacaoItem(
-          pedidoId,
-          item.id_tenis,
-          novoQ,
-          item.preco_unitario
-        );
-        if (!success) return;
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
 
         if (novoQ === 0) {
           itemElement.remove();
@@ -248,23 +289,20 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
           item.quantidade = novoQ;
           const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
           if (idx >= 0) itemsState[idx].quantidade = novoQ;
+
           preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
         }
         recalcularResumo();
       });
 
-      // BOTÃO REMOVER (CORRIGIDO)
+      // Botão REMOVER
       btnRemove.addEventListener('click', async () => {
         const confirmar = confirm(`Remover ${item.nome_tenis} do carrinho?`);
         if (!confirmar) return;
 
-        const success = await enviarAtualizacaoItem(
-          pedidoId,
-          item.id_tenis,
-          0,
-          item.preco_unitario
-        );
-        if (!success) return;
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, 0, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
 
         itemElement.remove();
         itemsState = itemsState.filter(x => x.id_tenis !== item.id_tenis);
@@ -277,9 +315,9 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
     // Render inicial
     cartItemsContainer.innerHTML = '';
     itemsState.forEach(it => {
-      const el = criarItemElement(it);
-      cartItemsContainer.appendChild(el);
+      cartItemsContainer.appendChild(criarItemElement(it));
     });
+
     recalcularResumo();
 
     backButton.addEventListener('click', () => {
@@ -287,17 +325,15 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
     });
 
     finalizeButton.addEventListener('click', async () => {
-      const finalizeResponse = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      const userData = await finalizeResponse.json();
-      if (userData.status !== 'ok') {
+      const usuario = await getUsuarioLogado();
+      if (!usuario) {
         alert('Você precisa estar logado para finalizar o pedido.');
         return;
       }
 
-      let idPedidoAtual = userData.id_pedido_atual;
+      let idPedidoAtual = usuario.id_pedido_atual;
+      alert('Mostrar id do pedido atual: ' + idPedidoAtual);
+      // Se não tiver pedido ainda, cria um agora e atualiza usuario/pessoa
       if (!idPedidoAtual) {
         const criar = await fetch(`${API_BASE_URL}/pedido`, {
           method: 'POST',
@@ -305,42 +341,41 @@ async function enviarAtualizacaoItem(idPedido, idTenis, quantidade, precoUnitari
           credentials: 'include',
           body: JSON.stringify({
             data_do_pedido: new Date().toISOString().split('T')[0],
-            id_cliente: userData.id_pessoa,
-            id_funcionario: null
+            id_cliente: usuario.id_pessoa,
+            id_funcionario: 100
           })
         });
         if (!criar.ok) {
-          alert('Erro ao criar pedido para finalização.');
+          alert('Erro ao criar pedido.');
           return;
         }
         const novo = await criar.json();
         idPedidoAtual = novo.id_pedido;
+
         await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ id_pessoa: userData.id_pessoa, id_pedido: idPedidoAtual })
+          body: JSON.stringify({ id_pessoa: usuario.id_pessoa, id_pedido: idPedidoAtual })
         });
       }
 
       const finalizeResponse2 = await fetch(`${API_BASE_URL}/pedido/${idPedidoAtual}`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ id_funcionario: FUNCIONARIO_ONLINE_ID })
       });
 
       if (finalizeResponse2.ok) {
-          window.location.href = 'http://localhost:3001/carrinho/finalizar';
+        window.location.href = 'http://localhost:3001/carrinho/finalizar';
       } else {
-          alert('Erro ao finalizar compra.');
+        alert('Erro ao finalizar compra.');
       }
     });
 
   } catch (error) {
     console.error('Erro ao carregar carrinho:', error);
-    alert('Erro ao carregar carrinho. Atualize a página e tente novamente.');
+    alert('Erro ao carregar carrinho.');
   }
 });
