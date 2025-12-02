@@ -47,6 +47,17 @@ async function nomeUsuarioHeader() {
           </ul>
         `;
         navMenu.appendChild(cadastroMenu);
+        // Menu "Relatórios" (igual ao dropdown Cadastros)
+        const relatoriosMenu = document.createElement('li');
+        relatoriosMenu.className = 'nav__menu-item';
+        relatoriosMenu.innerHTML = `
+          <a href="#">Relatórios</a>
+          <ul class="nav__submenu">
+            <li class="nav__submenu-item"><a href="/relatorios/estatisticas">Relatório de Estatísticas</a></li>
+            <li class="nav__submenu-item"><a href="/relatorios/vendas">Relatório de Vendas</a></li>
+          </ul>
+        `;
+        navMenu.appendChild(relatoriosMenu);
       }
 
       // Se usuário não tem pedido atual, cria um e atualiza na tabela pessoa

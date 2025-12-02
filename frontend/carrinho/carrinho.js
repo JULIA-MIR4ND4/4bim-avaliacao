@@ -167,25 +167,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pedidoId = await garantirPedidoValidoFront();
     // pedidoId pode ser null aqui — será criado ao enviar o primeiro item
 
-    // Prioridade: se houver um carrinho temporário em sessionStorage (gravado no índice), preferi-lo.
-    const carrinhoSession = JSON.parse(sessionStorage.getItem('carrinho')) || [];
+    // =============================================================
+    // 🔵 ENVIA OS ITENS DO LOCALSTORAGE PARA O BACKEND (CORREÇÃO PRINCIPAL)
+    // Se o usuário adicionou itens antes de logar/abrir o carrinho, salvamos agora.
+    let carrinhoLocal = JSON.parse(localStorage.getItem("carrinho")) || [];
 
-    let itemsState = [];
-    if (carrinhoSession.length > 0) {
-      // Usar o carrinho salvo localmente; não enviar ainda ao backend.
-      itemsState = carrinhoSession.map(it => ({ ...it }));
-    } else {
-      // Se não há carrinho local, tentar ler do pedido atual no backend (se existir)
-      let cartItems = [];
-      if (pedidoId) {
-        const response = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`, { credentials: 'include' });
-        if (response.ok) cartItems = await response.json();
-        else cartItems = [];
-      } else {
-        cartItems = [];
+    if (carrinhoLocal.length > 0) {
+      for (const item of carrinhoLocal) {
+        const resultado = await enviarAtualizacaoItem(pedidoId, item.id_tenis, item.quantidade, item.preco_unitario);
+        if (!resultado) {
+          console.error('Falha ao enviar item do localStorage para o backend:', item);
+          // continuar com próximos itens (não interrompe todo o loop)
+          continue;
+        }
+        // resultado contém o pedidoId (novo ou existente) — atualiza para próximos envios
+        if (typeof resultado === 'number') pedidoId = resultado;
       }
-      itemsState = Array.isArray(cartItems) ? cartItems.slice() : [];
+      // só removemos se pelo menos tentamos enviar (evita perda caso o backend falhe sempre)
+      localStorage.removeItem("carrinho");
     }
+    // =============================================================
+
+    // Buscar itens do pedido no backend (usar o pedidoId atual; se nulo, backend retornará vazio)
+    let cartItems = [];
+    if (pedidoId) {
+      const response = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`, { credentials: 'include' });
+      if (response.ok) cartItems = await response.json();
+      else cartItems = [];
+    } else {
+      cartItems = []; // sem pedido ainda
+    }
+
+    let itemsState = Array.isArray(cartItems) ? cartItems.slice() : [];
 
     function recalcularResumo() {
       let totalPrice = 0;
@@ -243,25 +256,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       itemElement.appendChild(btnRemove);
 
       // Botão +
-      btnPlus.addEventListener('click', () => {
+      btnPlus.addEventListener('click', async () => {
         const novoQ = parseInt(qtyDisplay.innerText) + 1;
+
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
+
         qtyDisplay.innerText = novoQ;
         item.quantidade = novoQ;
         const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
         if (idx >= 0) itemsState[idx].quantidade = novoQ;
-        else itemsState.push({ id_tenis: item.id_tenis, quantidade: novoQ, preco_unitario: item.preco_unitario });
-
-        // atualiza sessionStorage
-        sessionStorage.setItem('carrinho', JSON.stringify(itemsState));
 
         preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
         recalcularResumo();
       });
 
       // Botão -
-      btnMinus.addEventListener('click', () => {
+      btnMinus.addEventListener('click', async () => {
         const atual = parseInt(qtyDisplay.innerText);
         const novoQ = Math.max(0, atual - 1);
+
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
 
         if (novoQ === 0) {
           itemElement.remove();
@@ -271,23 +289,23 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.quantidade = novoQ;
           const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
           if (idx >= 0) itemsState[idx].quantidade = novoQ;
+
+          preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
         }
-
-        // atualiza sessionStorage
-        sessionStorage.setItem('carrinho', JSON.stringify(itemsState));
-
-        if (novoQ !== 0) preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
         recalcularResumo();
       });
 
       // Botão REMOVER
-      btnRemove.addEventListener('click', () => {
+      btnRemove.addEventListener('click', async () => {
         const confirmar = confirm(`Remover ${item.nome_tenis} do carrinho?`);
         if (!confirmar) return;
 
+        const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, 0, item.preco_unitario);
+        if (!result) return;
+        if (typeof result === 'number') pedidoId = result;
+
         itemElement.remove();
         itemsState = itemsState.filter(x => x.id_tenis !== item.id_tenis);
-        sessionStorage.setItem('carrinho', JSON.stringify(itemsState));
         recalcularResumo();
       });
 
@@ -313,21 +331,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // Prioriza o carrinho em sessionStorage (modificações feitas na UI)
-      const carrinhoSession = JSON.parse(sessionStorage.getItem('carrinho')) || [];
-      const produtosASalvar = (carrinhoSession.length > 0 ? carrinhoSession : itemsState).map(it => ({
-        id_tenis: parseInt(it.id_tenis),
-        quantidade: parseInt(it.quantidade),
-        preco_unitario: parseFloat(it.preco_unitario)
-      })).filter(p => p.quantidade > 0);
-
-      if (produtosASalvar.length === 0) {
-        alert('O carrinho está vazio. Adicione itens antes de finalizar.');
-        return;
-      }
-
-      try {
-        // 1) Criar pedido no backend com id_funcionario fixo (100)
+      let idPedidoAtual = usuario.id_pedido_atual;
+      alert('Mostrar id do pedido atual: ' + idPedidoAtual);
+      // Se não tiver pedido ainda, cria um agora e atualiza usuario/pessoa
+      if (!idPedidoAtual) {
         const criar = await fetch(`${API_BASE_URL}/pedido`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -335,50 +342,35 @@ document.addEventListener('DOMContentLoaded', async () => {
           body: JSON.stringify({
             data_do_pedido: new Date().toISOString().split('T')[0],
             id_cliente: usuario.id_pessoa,
-            id_funcionario: FUNCIONARIO_ONLINE_ID
+            id_funcionario: 100
           })
         });
-
         if (!criar.ok) {
-          const txt = await criar.text();
-          console.error('Erro ao criar pedido:', txt);
-          alert('Erro ao criar pedido. Tente novamente.');
+          alert('Erro ao criar pedido.');
           return;
         }
-
         const novo = await criar.json();
-        const idPedidoAtual = novo.id_pedido;
+        idPedidoAtual = novo.id_pedido;
 
-        // 2) Atualizar pessoa.id_pedido_atual
         await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ id_pessoa: usuario.id_pessoa, id_pedido: idPedidoAtual })
         });
+      }
 
-        // 3) Inserir os produtos no pedido (POST /pedido/produtos)
-        const salvarRes = await fetch(`${API_BASE_URL}/pedido/produtos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ id_pedido: idPedidoAtual, produtos: produtosASalvar })
-        });
+      const finalizeResponse2 = await fetch(`${API_BASE_URL}/pedido/${idPedidoAtual}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id_funcionario: FUNCIONARIO_ONLINE_ID })
+      });
 
-        if (!salvarRes.ok) {
-          const txt = await salvarRes.text();
-          console.error('Erro ao salvar produtos no pedido:', txt);
-          alert('Erro ao salvar os itens. Tente novamente.');
-          return;
-        }
-
-        // 4) Opcional: finalizar/associar funcionario — já criamos com id_funcionario
-        // Limpar sessionStorage e redirecionar para página de confirmação
-        sessionStorage.removeItem('carrinho');
+      if (finalizeResponse2.ok) {
         window.location.href = 'http://localhost:3001/carrinho/finalizar';
-      } catch (err) {
-        console.error('Erro ao finalizar compra:', err);
-        alert('Erro ao finalizar compra. Tente novamente.');
+      } else {
+        alert('Erro ao finalizar compra.');
       }
     });
 

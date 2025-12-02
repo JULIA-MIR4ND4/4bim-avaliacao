@@ -105,6 +105,10 @@ app.use('/produto', produtoRoutes);
 const uploadRoutes = require('./routes/uploadRoutes');
 app.use('/upload', uploadRoutes);
 
+// Rotas de relatórios (páginas + APIs)
+const relatoriosRoutes = require('./routes/relatoriosRoutes');
+app.use('/relatorios', relatoriosRoutes);
+
 // Rota de cadastro (novo cliente)
 const cadastroRoutes = require('./routes/cadastroRoutes');
 app.use('/cadastro', cadastroRoutes);

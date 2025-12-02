@@ -1,16 +1,168 @@
 // /home/ubuntu/project/4bim-avaliacao/relatorios/estatisticas/estatisticas.js
 
-import {
-    getVendasRaw,
-    calcResumo,
-    topProdutos,
-    vendasPorTamanho,
-    vendasPorFormaPagamento,
-    receitaPorPeriodo,
-    detalhesProduto,
-    getPeriodoDatas,
-    formatarMoeda
-} from '../../../backend/controllers/estatisticasController.js';
+// Este arquivo foi adaptado para buscar os dados reais do backend (PostgreSQL)
+const API = window.API_BASE_URL || 'http://localhost:3001';
+
+// --- Helpers (implementações client-side dos algoritmos de estatísticas) ---
+function formatarMoeda(valor) {
+    return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function getPeriodoDatas(periodo) {
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+
+    switch (periodo) {
+        case '7d': inicio.setDate(hoje.getDate() - 6); break;
+        case '30d': inicio.setDate(hoje.getDate() - 29); break;
+        case 'current_month': inicio.setDate(1); break;
+        default: inicio.setDate(hoje.getDate() - 6); break;
+    }
+    return { start: inicio, end: hoje };
+}
+
+function calcResumo(vendas, start, end) {
+    const vendasFiltradas = vendas.filter(v => {
+        const d = new Date(v.data_do_pedido || v.data);
+        return d >= start && d <= end;
+    });
+
+    const totalPedidos = vendasFiltradas.length;
+    const totalArrecadado = vendasFiltradas.reduce((acc, v) => acc + (parseFloat(v.valor_total) || 0), 0);
+    const ticketMedio = totalPedidos > 0 ? totalArrecadado / totalPedidos : 0;
+    return { totalPedidos, totalArrecadado, ticketMedio };
+}
+
+function topProdutos(vendas, n = 10) {
+    const contagem = {};
+    let total = 0;
+    vendas.forEach(v => {
+        (v.itens || []).forEach(i => {
+            const modelo = i.nome_tenis || i.modelo || 'Sem nome';
+            const qtd = parseInt(i.quantidade) || 0;
+            total += qtd;
+            contagem[modelo] = (contagem[modelo] || 0) + qtd;
+        });
+    });
+
+    const ranking = Object.keys(contagem).map(modelo => ({ modelo, qtd: contagem[modelo], percentual: (contagem[modelo] / (total||1)) * 100 }));
+    ranking.sort((a, b) => b.qtd - a.qtd);
+    return ranking.slice(0, n);
+}
+
+function vendasPorTamanho(vendas) {
+    const map = {};
+    let total = 0;
+    vendas.forEach(v => (v.itens || []).forEach(i => {
+        const tamanho = i.tamanho || 'N/D';
+        const qtd = parseInt(i.quantidade) || 0;
+        total += qtd;
+        map[tamanho] = (map[tamanho] || 0) + qtd;
+    }));
+    return Object.keys(map).map(t => ({ tamanho: t, qtd: map[t], percentual: (map[t] / (total||1)) * 100 }));
+}
+
+function vendasPorFormaPagamento(vendas) {
+    const map = {};
+    vendas.forEach(v => {
+        const forma = v.formaPagamento || v.forma_pagamento || 'Outro';
+        map[forma] = map[forma] || { contagem: 0, totalArrecadado: 0 };
+        map[forma].contagem += 1;
+        map[forma].totalArrecadado += parseFloat(v.valor_total) || 0;
+    });
+    const total = vendas.length || 1;
+    return Object.keys(map).map(k => ({ forma: k, contagem: map[k].contagem, totalArrecadado: map[k].totalArrecadado, percentual: (map[k].contagem / total) * 100 }));
+}
+
+function receitaPorPeriodo(vendas, agrupamento = 'day') {
+    const serie = {};
+    vendas.forEach(v => {
+        const d = new Date(v.data_do_pedido || v.data);
+        let chave;
+        if (agrupamento === 'day') chave = d.toISOString().split('T')[0];
+        else if (agrupamento === 'week') { const dia = d.getDate() - d.getDay(); const inicio = new Date(d); inicio.setDate(dia); chave = inicio.toISOString().split('T')[0]; }
+        else chave = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        serie[chave] = (serie[chave] || 0) + (parseFloat(v.valor_total) || 0);
+    });
+    return Object.keys(serie).sort().map(k => ({ periodo: k, receita: serie[k] }));
+}
+
+function detalhesProduto(vendas, modelo) {
+    const vendasProd = vendas.filter(v => (v.itens || []).some(i => (i.nome_tenis || i.modelo) === modelo));
+    const historico = {};
+    const tamanhos = {};
+    vendasProd.forEach(v => {
+        const data = (v.data_do_pedido || v.data).split('T')[0];
+        const it = (v.itens || []).find(i => (i.nome_tenis || i.modelo) === modelo);
+        if (!it) return;
+        historico[data] = (historico[data] || 0) + (parseInt(it.quantidade)||0);
+        const tam = it.tamanho || 'N/D';
+        tamanhos[tam] = (tamanhos[tam] || 0) + (parseInt(it.quantidade)||0);
+    });
+    return { modelo, historico: Object.keys(historico).sort().map(d=>({data:d,quantidade:historico[d]})), tamanhos: Object.keys(tamanhos).map(t=>({tamanho:t,quantidade:tamanhos[t]})), pedidos: vendasProd.map(v=>({ id: v.id_pedido || v.id, data: v.data_do_pedido || v.data, valor: v.valor_total })) };
+}
+
+// Busca vendas do backend e monta vendasGlobais no formato esperado
+// accept optional start/end ISO dates to pass to the API
+async function fetchVendasFromApi(startDate, endDate) {
+    try {
+        const qs = new URLSearchParams();
+        if (startDate) qs.set('startDate', startDate);
+        if (endDate) qs.set('endDate', endDate);
+        const url = `${API}/relatorios/api/vendas${qs.toString() ? '?' + qs.toString() : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Erro ao buscar vendas do backend: ' + res.status);
+        const rows = await res.json();
+        // rows é array de pedidos com campos: id_pedido, data_do_pedido, valor_total, cliente, funcionario, itens
+        const vendas = rows.map(r => ({
+            id_pedido: r.id_pedido,
+            data_do_pedido: r.data_do_pedido || r.data,
+            valor_total: parseFloat(r.valor_total) || 0,
+            cliente: r.cliente,
+            funcionario: r.funcionario,
+            itens: (r.itens || []).map(i => ({ nome_tenis: i.nome_tenis || i.modelo, quantidade: i.quantidade, preco_unitario: i.preco_unitario, tamanho: i.tamanho }))
+        }));
+        return vendas;
+    } catch (error) {
+        console.error('Falha ao buscar vendas do API:', error);
+        // Não usar dados mock — requisito: usar somente o banco de dados do usuário
+        throw error;
+    }
+}
+
+// Busca as estatísticas agregadas do backend (total pedidos, arrecadado, etc.)
+async function fetchEstatisticasFromApi(startDate, endDate) {
+    try {
+        const qs = new URLSearchParams();
+        if (startDate) qs.set('startDate', startDate);
+        if (endDate) qs.set('endDate', endDate);
+        const url = `${API}/relatorios/api/estatisticas${qs.toString() ? '?' + qs.toString() : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Erro ao buscar estatísticas: ' + res.status);
+        return await res.json();
+    } catch (err) {
+        console.error('Falha ao buscar estatísticas do API:', err);
+        throw err;
+    }
+}
+
+// Busca receita agrupada por mês diretamente do backend
+async function fetchReceitaPorMesFromApi(startDate, endDate) {
+    try {
+        const qs = new URLSearchParams();
+        if (startDate) qs.set('startDate', startDate);
+        if (endDate) qs.set('endDate', endDate);
+        const url = `${API}/relatorios/api/receita-mes${qs.toString() ? '?' + qs.toString() : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Erro ao buscar receita por mês: ' + res.status);
+        return await res.json();
+    } catch (err) {
+        console.error('Falha ao buscar receita por mês do API:', err);
+        throw err;
+    }
+}
 
 // Variáveis globais para os gráficos
 let rankingChart, paymentChart, sizeChart, timelineChart, modalSalesChart;
@@ -222,19 +374,61 @@ async function loadAndRenderData() {
         end.setHours(23, 59, 59, 999); // Garante que o dia final seja inclusivo
     }
 
+    // Mostrar e limpar mensagens de erro
+    const apiErrorEl = document.getElementById('api-error');
+    if (apiErrorEl) { apiErrorEl.style.display = 'none'; apiErrorEl.textContent = ''; }
+
+    const sISO = start ? start.toISOString().split('T')[0] : null;
+    const eISO = end ? end.toISOString().split('T')[0] : null;
+
+    // 0. Buscar estatísticas agregadas do servidor e atualizar cards (mais eficiente)
+    try {
+        const stats = await fetchEstatisticasFromApi(sISO, eISO);
+        document.getElementById('total-pedidos').textContent = (stats.total_pedidos || 0).toLocaleString('pt-BR');
+        document.getElementById('total-arrecadado').textContent = formatarMoeda(parseFloat(stats.total_arrecadado) || 0);
+        const qtdEl = document.getElementById('qtd-produtos');
+        if (qtdEl) qtdEl.textContent = (stats.quantidade_produtos_vendidos || 0).toLocaleString('pt-BR');
+        if (stats.produto_mais_vendido) {
+            document.getElementById('top-produto-nome').textContent = stats.produto_mais_vendido.nome_tenis || stats.produto_mais_vendido.nome || '—';
+            document.getElementById('top-produto-qtd').textContent = `${stats.produto_mais_vendido.total_vendido || stats.produto_mais_vendido.total_vendido || 0} unidades`;
+        }
+    } catch (err) {
+        console.error('Erro ao carregar estatísticas agregadas:', err);
+        if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Erro ao carregar estatísticas do servidor.'; }
+        // continue: ainda tentamos carregar vendas para os gráficos, mas cards ficam com valores anteriores
+    }
     // 1. Filtrar vendas pelo período (a filtragem está dentro do controller, mas vamos passar as datas)
     // No nosso controller, a filtragem é feita implicitamente em calcResumo, mas vamos refinar.
     // Para simplificar, vamos assumir que as funções do controller lidam com o filtro.
 
     // 2. Calcular e renderizar o resumo
-    const resumo = calcResumo(vendas, start, end);
-    const ranking = topProdutos(vendas); // O ranking é calculado sobre todas as vendas por enquanto
+    // 2. Buscar vendas para os gráficos (a API já filtra por datas se fornecidas)
+    try {
+        vendasGlobais = await fetchVendasFromApi(sISO, eISO);
+    } catch (err) {
+        console.error('Erro ao buscar vendas para gráficos:', err);
+        if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Erro ao carregar dados de vendas para gráficos.'; }
+        vendasGlobais = [];
+    }
+
+    const resumo = calcResumo(vendasGlobais, start, end);
+    const ranking = topProdutos(vendasGlobais);
     updateSummaryPanel(resumo, ranking);
 
     // 3. Calcular e renderizar gráficos
     const pagamentos = vendasPorFormaPagamento(vendas);
     const tamanhos = vendasPorTamanho(vendas);
-    const receita = receitaPorPeriodo(vendas, agrupamentoSelect.value);
+    let receita = receitaPorPeriodo(vendas, agrupamentoSelect.value);
+    // Se o agrupamento for por mês, preferimos os dados agregados do servidor
+    if (agrupamentoSelect.value === 'month') {
+        try {
+            const s = sISO; const e = eISO;
+            const rows = await fetchReceitaPorMesFromApi(s, e);
+            receita = rows.map(r => ({ periodo: r.periodo, receita: r.receita }));
+        } catch (err) {
+            console.warn('Falha ao obter receita por mês do servidor, usando agregação local:', err);
+        }
+    }
 
     renderRankingChart(ranking);
     renderPaymentChart(pagamentos);
@@ -373,18 +567,27 @@ function exportToPDF() {
 // --- Inicialização ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Carregar dados brutos
-    vendasGlobais = getVendasRaw();
-
-    // 2. Inicializar gráficos
+    // 1. Inicializar gráficos
     initializeCharts();
 
-    // 3. Configurar eventos
+    // 2. Buscar dados brutos do backend e configurar eventos
     periodoSelect.addEventListener('change', handlePeriodoChange);
     agrupamentoSelect.addEventListener('change', loadAndRenderData);
     dataInicioInput.addEventListener('change', loadAndRenderData);
     dataFimInput.addEventListener('change', loadAndRenderData);
     printButton.addEventListener('click', handlePrint);
+    // Aplicar filtros -> refaz a consulta ao backend com as datas selecionadas
+    const btnApply = document.getElementById('apply-filters');
+    if (btnApply) btnApply.addEventListener('click', async () => {
+        // if custom, take date inputs
+        let s=null,e=null;
+        if (periodoSelect.value === 'custom') {
+            s = dataInicioInput.value ? new Date(dataInicioInput.value).toISOString().split('T')[0] : null;
+            e = dataFimInput.value ? new Date(dataFimInput.value).toISOString().split('T')[0] : null;
+        }
+        vendasGlobais = await fetchVendasFromApi(s,e);
+        loadAndRenderData();
+    });
     closeModal.addEventListener('click', closeProductModal);
     window.addEventListener('click', (event) => {
         if (event.target === modal) {
@@ -393,7 +596,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     exportCsvButton.addEventListener('click', exportToCSV);
     exportPdfButton.addEventListener('click', exportToPDF);
+    // 3. Buscar vendas do backend e carregar dados (sem fallback para mock)
+    fetchVendasFromApi().then(v => {
+        vendasGlobais = v || [];
+        loadAndRenderData();
+    }).catch(err => {
+        console.error('Erro ao carregar vendas para estatísticas:', err);
+        vendasGlobais = [];
+        loadAndRenderData();
+    });
 
-    // 4. Carregar dados iniciais
-    loadAndRenderData();
+    // Back to menu button
+    const backBtn = document.getElementById('back-to-menu');
+    if (backBtn) backBtn.addEventListener('click', () => { window.location.href = '/'; });
 });

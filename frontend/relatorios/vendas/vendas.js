@@ -83,24 +83,47 @@ const generateMockSalesData = () => {
  * Carrega os dados de vendas, priorizando localStorage.
  */
 const loadSalesData = async () => {
-    let data = [];
+    const API = window.API_BASE_URL || 'http://localhost:3001';
     try {
-        const localData = localStorage.getItem('relatorioVendas');
-        if (localData) {
-            data = JSON.parse(localData);
-        } else {
-            // Se não houver dados no localStorage, gera mock e salva
-            data = generateMockSalesData();
-            localStorage.setItem('relatorioVendas', JSON.stringify(data));
+        const qs = new URLSearchParams();
+        const startDate = document.getElementById('date-start').value;
+        const endDate = document.getElementById('date-end').value;
+        if (startDate) qs.set('startDate', startDate);
+        if (endDate) qs.set('endDate', endDate);
+        const res = await fetch(`${API}/relatorios/api/vendas${qs.toString() ? '?' + qs.toString() : ''}`);
+        if (!res.ok) throw new Error('API de vendas retornou erro ' + res.status);
+        const rows = await res.json();
+        // Mapear pedidos + itens para o formato esperado pela UI (uma linha por item)
+        const mapped = [];
+        for (const ped of rows) {
+            const pedidoId = ped.id_pedido || ped.id;
+            const dataPedido = ped.data_do_pedido || ped.data;
+            const cliente = ped.cliente || '';
+            const itens = ped.itens || [];
+            for (const it of itens) {
+                const preco = parseFloat(it.preco_unitario) || 0;
+                const qtd = parseInt(it.quantidade) || 0;
+                mapped.push({
+                    id: pedidoId,
+                    data: dataPedido,
+                    cliente: cliente,
+                    produto: it.nome_tenis || it.modelo || '',
+                    numero: it.tamanho || '',
+                    qtd: qtd,
+                    precoUnit: preco,
+                    total: qtd * preco,
+                    pagamento: ped.formaPagamento || ped.pagamento || '',
+                    status: ped.status || ''
+                });
+            }
         }
+        allSalesData = mapped;
     } catch (error) {
-        console.error("Erro ao carregar dados do localStorage:", error);
-        // Fallback para API (se implementada) ou mock
-        // Implementação futura: fetch('/api/vendas')
-        data = generateMockSalesData();
+        console.warn('Falha ao buscar vendas da API. Erro:', error.message || error);
+        // Requisito: usar somente dados do banco — não preencher com mock/localStorage
+        allSalesData = [];
     }
 
-    allSalesData = data;
     applyFiltersAndRender();
 };
 
@@ -296,6 +319,10 @@ const init = () => {
     document.getElementById('print-button').addEventListener('click', () => {
         window.print();
     });
+
+    // Botão voltar ao menu
+    const back = document.getElementById('back-to-menu');
+    if (back) back.addEventListener('click', () => { window.location.href = '/'; });
 
     // Event Listener para o botão de exportar CSV
     document.getElementById('export-csv-button').addEventListener('click', exportToCSV);
