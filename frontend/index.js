@@ -98,15 +98,8 @@ async function nomeUsuario() {
 
     if (data.status === 'ok') {
       if (primeiraOpcao) primeiraOpcao.text = data.nome; // usuário logado
-
-      // Garantir que exista um pedido válido para o usuário
-      const idPedidoValido = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
-      if (idPedidoValido) {
-        console.log('Pedido válido garantido:', idPedidoValido);
-      } else {
-        console.error('Não foi possível garantir um pedido válido para o usuário.');
-      }
-
+      // Não criar pedido automaticamente na página inicial;
+      // o pedido será criado apenas ao finalizar a compra no carrinho.
     } else if (primeiraOpcao) {
       primeiraOpcao.text = "Fazer Login"; // fallback
     }
@@ -154,50 +147,31 @@ async function carregarProdutosMostruario() {
     const response = await fetch(`${API_BASE_URL}/produto/`);
     const produtos = await response.json();
 
-    const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
-      method: 'POST',
-      credentials: 'include' // envia cookies
-    });
-    const data = await res.json();
-
-    // Prepare defaults
+    // Em vez de criar/verificar pedido no servidor aqui, usamos o sessionStorage
+    // para manter um carrinho temporário até o usuário finalizar a compra.
     let prodPedido = [];
     let prodPedido2 = {};
     let idsProdutos = [];
 
-    if (data && data.status === 'ok') {
-      // Garante/atualiza pedidoId (verifica existência no DB e cria se necessário)
-      const idPedidoValido = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
-      pedidoId = idPedidoValido;
-      temquantidade = true;
-
-      let itemsJson = [];
-      if (pedidoId) {
-        const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`);
-        if (itemsRes.ok) {
-          itemsJson = await itemsRes.json();
-        } else {
-          itemsJson = []; // nada no pedido
-        }
-      }
-
-      prodPedido = Array.isArray(itemsJson) ? itemsJson : [];
-
-      console.log('prodPedido:', prodPedido);
-
+    try {
+      const carrinhoLocal = JSON.parse(sessionStorage.getItem('carrinho')) || [];
+      prodPedido = Array.isArray(carrinhoLocal) ? carrinhoLocal : [];
       prodPedido2 = {};
       idsProdutos = prodPedido.map(item => {
         prodPedido2[item.id_tenis] = item.quantidade;
         return item.id_tenis;
       });
 
-      // Preenche o objeto pedido local com os itens existentes (quantidade > 0)
+      // Preenche o objeto pedido local com os itens do sessionStorage
       prodPedido.forEach(it => {
         pedido[it.id_tenis] = {
           quantidade: it.quantidade,
           preco_unitario: it.preco_unitario
         };
       });
+      if (prodPedido.length > 0) temquantidade = true;
+    } catch (e) {
+      console.warn('Falha ao ler sessionStorage do carrinho:', e);
     }
 
     renderizarProdutos(produtos, prodPedido2, idsProdutos);
@@ -246,51 +220,17 @@ function handleQuantidadeChange(event, produtoId, preco_unitario) {
 // Envia apenas UM produto ao backend (upsert). Usado pelo botão "Adicionar".
 async function enviarProdutoIndividual(idPedido, idTenis, quantidade, precoUnitario) {
   try {
-    // se quantidade é 0 -> enviar remoção (quantidade 0 será tratada no backend)
-    const produtos = [{
-      id_tenis: parseInt(idTenis),
-      quantidade: parseInt(quantidade),
-      preco_unitario: parseFloat(precoUnitario)
-    }];
-
-    const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ id_pedido: idPedido, produtos })
-    });
-
-    if (!response.ok) {
-      const txt = await response.text();
-      console.error('Erro ao enviar produto individual:', txt);
-      return false;
-    }
-
-    // Atualiza estado local com sucesso: se quantidade>0 atualiza/insere, se 0 remove
-    if (produtos[0].quantidade > 0) {
-      pedido[idTenis] = { quantidade: produtos[0].quantidade, preco_unitario: produtos[0].preco_unitario };
+    // Agora operamos em sessionStorage: mantemos o carrinho local até finalizar compra
+    const q = parseInt(quantidade) || 0;
+    if (q > 0) {
+      pedido[idTenis] = { quantidade: q, preco_unitario: parseFloat(precoUnitario) };
     } else {
       delete pedido[idTenis];
     }
 
-    // opcional: atualizar a lista de produtos do pedido no front buscando do servidor
-    // (garante total sincronizado)
-    try {
-      const itemsRes = await fetch(`${API_BASE_URL}/pedido/produtos/${idPedido}`);
-      if (itemsRes.ok) {
-        const itemsJson = await itemsRes.json();
-        // atualiza pedido com o que há no servidor
-        // limpa e repopula
-        Object.keys(pedido).forEach(k => delete pedido[k]);
-        itemsJson.forEach(it => {
-          pedido[it.id_tenis] = { quantidade: it.quantidade, preco_unitario: it.preco_unitario };
-        });
-      }
-    } catch (e) {
-      // se der problema, não é crítico
-      console.warn('Falha ao re-buscar itens após inserção:', e);
-    }
-
+    // Converte pedido em array e salva no sessionStorage
+    const arr = Object.entries(pedido).map(([id, det]) => ({ id_tenis: parseInt(id), quantidade: det.quantidade, preco_unitario: det.preco_unitario }));
+    sessionStorage.setItem('carrinho', JSON.stringify(arr));
     return true;
   } catch (err) {
     console.error('Erro enviarProdutoIndividual:', err);
@@ -300,48 +240,20 @@ async function enviarProdutoIndividual(idPedido, idTenis, quantidade, precoUnita
 
 async function handleContinuar() {
   try {
-    // Garante que existe um pedido válido antes de enviar produtos
-    if (!pedidoId) {
-      // refetch do usuário e garantia do pedido
-      const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        pedidoId = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
-      }
-    }
-
-    if (!pedidoId) {
-      throw new Error('Não foi possível criar/obter pedido antes de continuar.');
-    }
-
+    // Salva o carrinho atual em sessionStorage e navega para o carrinho.
     const produtos = Object.entries(pedido).map(([id_tenis, detalhes]) => ({
       id_tenis: parseInt(id_tenis),
       quantidade: detalhes.quantidade || 0,
       preco_unitario: detalhes.preco_unitario
-    })).filter(p => p.quantidade > 0); // só enviar produtos com quantidade > 0
+    })).filter(p => p.quantidade > 0);
 
     if (produtos.length === 0) {
       alert('Nenhum produto selecionado.');
       return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/pedido/produtos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_pedido: pedidoId, produtos }),
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error('Erro ao salvar os produtos no pedido: ' + text);
-    }
-
-    console.log('Produtos salvos com sucesso no pedido!');
-    // redireciona para a rota do carrinho
+    sessionStorage.setItem('carrinho', JSON.stringify(produtos));
+    // vai ao carrinho; o pedido só será criado ao finalizar a compra
     window.location.href = "http://localhost:3001/carrinho";
   } catch (error) {
     console.error('Erro no handleContinuar:', error);
@@ -393,29 +305,11 @@ function renderizarProdutos(produtos, prodPedido2, idsProdutos) {
     btnAdicionar.innerText = 'Adicionar';
 
     btnAdicionar.addEventListener('click', async () => {
-      // garante pedidoId
-      if (!pedidoId) {
-        const res = await fetch(`${API_BASE_URL}/login/verificaSeUsuarioEstaLogado`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-        const data = await res.json();
-        if (data.status !== 'ok') {
-          alert('Você precisa estar logado para adicionar produtos.');
-          return;
-        }
-        pedidoId = await garantirPedidoValido(data.id_pessoa, data.id_pedido_atual);
-        if (!pedidoId) {
-          alert('Erro ao garantir pedido. Tente novamente.');
-          return;
-        }
-      }
-
       // pega a quantidade atual do input (pode ser 0)
       const q = inputQuantidade.value === '' ? 0 : parseInt(inputQuantidade.value, 10) || 0;
 
-      // envia apenas esse produto
-      const ok = await enviarProdutoIndividual(pedidoId, produto.id_tenis, q, produto.preco_unitario);
+      // salva localmente no sessionStorage (o pedido no banco será criado ao finalizar)
+      const ok = await enviarProdutoIndividual(null, produto.id_tenis, q, produto.preco_unitario);
       if (ok) {
         // feedback simples
         btnAdicionar.innerText = 'Adicionado ✓';
