@@ -45,8 +45,10 @@ exports.obterItensDoPedido = async (req, res) => {
       [idPedidoNum]
     );
 
+    // Se não houver itens, retornamos array vazio (200) — facilita o consumo no frontend
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Nenhum item encontrado para este pedido.' });
+      console.log(`[GET /pedido/produtos/${idPedidoNum}] Nenhum item encontrado para este pedido.`);
+      return res.status(200).json([]);
     }
 
     res.status(200).json(result.rows);
@@ -132,8 +134,9 @@ exports.criarItemDoPedido = async (req, res) => {
       }
 
       // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
+      // Adiciona schema explícito
       const result = await query(
-        `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
+        `INSERT INTO public.pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (id_tenis, id_pedido)
          DO UPDATE SET quantidade = EXCLUDED.quantidade,
@@ -165,8 +168,9 @@ exports.criarItemDoPedido = async (req, res) => {
     }
 
     // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
+    // Adiciona schema explícito
     const result = await query(
-      `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
+      `INSERT INTO public.pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (id_tenis, id_pedido)
        DO UPDATE SET quantidade = EXCLUDED.quantidade,

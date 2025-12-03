@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const novoPedido = await criarRes.json();
         currentPedidoId = novoPedido.id_pedido;
+        console.log('✅ Pedido criado com sucesso:', currentPedidoId);
 
         // Atualiza pessoa.id_pedido_atual para o novo pedido
         await fetch(`${API_BASE_URL}/pessoa/atualizarPedidoAtual`, {
@@ -167,35 +168,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pedidoId = await garantirPedidoValidoFront();
     // pedidoId pode ser null aqui — será criado ao enviar o primeiro item
 
-    // =============================================================
-    // 🔵 ENVIA OS ITENS DO LOCALSTORAGE PARA O BACKEND (CORREÇÃO PRINCIPAL)
-    // Se o usuário adicionou itens antes de logar/abrir o carrinho, salvamos agora.
-    let carrinhoLocal = JSON.parse(localStorage.getItem("carrinho")) || [];
-
-    if (carrinhoLocal.length > 0) {
-      for (const item of carrinhoLocal) {
-        const resultado = await enviarAtualizacaoItem(pedidoId, item.id_tenis, item.quantidade, item.preco_unitario);
-        if (!resultado) {
-          console.error('Falha ao enviar item do localStorage para o backend:', item);
-          // continuar com próximos itens (não interrompe todo o loop)
-          continue;
-        }
-        // resultado contém o pedidoId (novo ou existente) — atualiza para próximos envios
-        if (typeof resultado === 'number') pedidoId = resultado;
-      }
-      // só removemos se pelo menos tentamos enviar (evita perda caso o backend falhe sempre)
-      localStorage.removeItem("carrinho");
+    // Carrega itens do sessionStorage (itens adicionados pelo usuário antes de finalizar)
+    const rawCarrinho = sessionStorage.getItem("carrinho");
+    let carrinhoLocal = [];
+    try {
+      carrinhoLocal = rawCarrinho ? JSON.parse(rawCarrinho) : [];
+    } catch (e) {
+      console.warn('Erro ao parsear sessionStorage.carrinho:', e, 'raw:', rawCarrinho);
+      carrinhoLocal = [];
     }
-    // =============================================================
 
-    // Buscar itens do pedido no backend (usar o pedidoId atual; se nulo, backend retornará vazio)
     let cartItems = [];
-    if (pedidoId) {
+    let localOnly = false; // se true, operamos apenas no sessionStorage até finalizar
+
+    if (Array.isArray(carrinhoLocal) && carrinhoLocal.length > 0) {
+      // Preferimos mostrar os itens que o usuário adicionou localmente e NÃO enviamos ao backend ainda
+      console.debug('Usando itens do sessionStorage (ainda não persistidos):', carrinhoLocal);
+      cartItems = carrinhoLocal.map(it => ({
+        id_tenis: it.id_tenis,
+        nome_tenis: it.nome_tenis || `Produto ${it.id_tenis}`,
+        quantidade: it.quantidade,
+        preco_unitario: it.preco_unitario
+      }));
+      localOnly = true;
+    } else if (pedidoId) {
+      // Se não há itens locais e existe um pedido vinculado, carregue do backend
       const response = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`, { credentials: 'include' });
       if (response.ok) cartItems = await response.json();
       else cartItems = [];
+      console.debug('Itens obtidos do backend para pedidoId=', pedidoId, '=>', cartItems);
+      localOnly = false;
     } else {
-      cartItems = []; // sem pedido ainda
+      cartItems = [];
+      console.debug('Nenhum item no sessionStorage e sem pedido existente.');
+      localOnly = true;
     }
 
     let itemsState = Array.isArray(cartItems) ? cartItems.slice() : [];
@@ -259,6 +265,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnPlus.addEventListener('click', async () => {
         const novoQ = parseInt(qtyDisplay.innerText) + 1;
 
+        if (typeof localOnly !== 'undefined' && localOnly) {
+          // atualiza apenas localmente e no sessionStorage
+          qtyDisplay.innerText = novoQ;
+          item.quantidade = novoQ;
+          const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
+          if (idx >= 0) itemsState[idx].quantidade = novoQ;
+          try {
+            sessionStorage.setItem('carrinho', JSON.stringify(itemsState.map(it => ({ id_tenis: it.id_tenis, quantidade: it.quantidade, preco_unitario: it.preco_unitario, nome_tenis: it.nome_tenis }))));
+          } catch (e) { console.warn('Falha ao atualizar sessionStorage no +:', e); }
+          preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
+          recalcularResumo();
+          return;
+        }
+
         const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
         if (!result) return;
         if (typeof result === 'number') pedidoId = result;
@@ -276,6 +296,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnMinus.addEventListener('click', async () => {
         const atual = parseInt(qtyDisplay.innerText);
         const novoQ = Math.max(0, atual - 1);
+
+        if (typeof localOnly !== 'undefined' && localOnly) {
+          if (novoQ === 0) {
+            itemElement.remove();
+            itemsState = itemsState.filter(x => x.id_tenis !== item.id_tenis);
+          } else {
+            qtyDisplay.innerText = novoQ;
+            item.quantidade = novoQ;
+            const idx = itemsState.findIndex(x => x.id_tenis === item.id_tenis);
+            if (idx >= 0) itemsState[idx].quantidade = novoQ;
+            preco.innerText = `R$ ${(item.preco_unitario * novoQ).toFixed(2)}`;
+          }
+          try {
+            sessionStorage.setItem('carrinho', JSON.stringify(itemsState.map(it => ({ id_tenis: it.id_tenis, quantidade: it.quantidade, preco_unitario: it.preco_unitario, nome_tenis: it.nome_tenis }))));
+          } catch (e) { console.warn('Falha ao atualizar sessionStorage no -:', e); }
+          recalcularResumo();
+          return;
+        }
 
         const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, novoQ, item.preco_unitario);
         if (!result) return;
@@ -299,6 +337,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnRemove.addEventListener('click', async () => {
         const confirmar = confirm(`Remover ${item.nome_tenis} do carrinho?`);
         if (!confirmar) return;
+
+        if (typeof localOnly !== 'undefined' && localOnly) {
+          itemElement.remove();
+          itemsState = itemsState.filter(x => x.id_tenis !== item.id_tenis);
+          try {
+            sessionStorage.setItem('carrinho', JSON.stringify(itemsState.map(it => ({ id_tenis: it.id_tenis, quantidade: it.quantidade, preco_unitario: it.preco_unitario, nome_tenis: it.nome_tenis }))));
+          } catch (e) { console.warn('Falha ao atualizar sessionStorage no remover:', e); }
+          recalcularResumo();
+          return;
+        }
 
         const result = await enviarAtualizacaoItem(pedidoId, item.id_tenis, 0, item.preco_unitario);
         if (!result) return;
@@ -358,6 +406,43 @@ document.addEventListener('DOMContentLoaded', async () => {
           credentials: 'include',
           body: JSON.stringify({ id_pessoa: usuario.id_pessoa, id_pedido: idPedidoAtual })
         });
+      }
+
+      // Se havia itens apenas no sessionStorage, envie todos agora para o backend
+      try {
+        if (typeof localOnly !== 'undefined' && localOnly && Array.isArray(itemsState) && itemsState.length > 0) {
+          console.log('Iniciando envio de itens locais ao backend. pedidoId:', idPedidoAtual, 'itens:', itemsState);
+          
+          // Pequeno delay para garantir que o pedido foi commitado no DB
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // prepara payload
+          const produtosPayload = itemsState.map(it => ({ id_tenis: it.id_tenis, quantidade: it.quantidade, preco_unitario: it.preco_unitario }));
+          console.debug('Payload sendo enviado:', { id_pedido: idPedidoAtual, produtos: produtosPayload });
+          
+          const enviarRes = await fetch(`${API_BASE_URL}/pedido/produtos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id_pedido: idPedidoAtual, produtos: produtosPayload })
+          });
+          
+          const txtResp = await enviarRes.text();
+          console.debug('Resposta do backend:', enviarRes.status, txtResp);
+          
+          if (!enviarRes.ok) {
+            console.error('Falha ao enviar itens ao finalizar (status', enviarRes.status + '):', txtResp);
+            alert('Erro ao enviar itens do carrinho. Status: ' + enviarRes.status + '. Veja console.');
+            return;
+          }
+          // Limpamos a sessionStorage.carrinho após persistir
+          try { sessionStorage.removeItem('carrinho'); } catch (e) { console.warn('Não foi possível remover sessionStorage.carrinho:', e); }
+          console.log('✓ Itens enviados com sucesso ao backend.');
+        }
+      } catch (e) {
+        console.error('Erro ao enviar itens na finalização:', e);
+        alert('Erro ao enviar itens na finalização. Veja console.');
+        return;
       }
 
       const finalizeResponse2 = await fetch(`${API_BASE_URL}/pedido/${idPedidoAtual}`, {

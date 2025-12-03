@@ -64,28 +64,31 @@ exports.buscarPedidoPorId = async (req, res) => {
   }
 };
 
-// Ajustar a função inserirPedido para forçar funcionário = 100 (vendedor online)
+// Inserir pedido (aceita id_funcionario do frontend ou null)
 exports.inserirPedido = async (req, res) => {
   console.log('Corpo da requisição para inserir pedido:', req.body);
   try {
-    let { data_do_pedido, id_cliente } = req.body;
+    let { data_do_pedido, id_cliente, id_funcionario } = req.body;
 
-    // FORÇAR SEMPRE o id_funcionario = 100
-    const id_funcionario = 100;  
+    // Se id_funcionario não for enviado, usar null (pode ser preenchido depois)
+    if (id_funcionario === undefined || id_funcionario === null) {
+      id_funcionario = null;
+    }
 
     const result = await db.query(
-      `INSERT INTO Pedido (data_do_pedido, id_cliente, id_funcionario)
+      `INSERT INTO public.Pedido (data_do_pedido, id_cliente, id_funcionario)
        VALUES ($1, $2, $3) RETURNING id_pedido`,
       [data_do_pedido, id_cliente, id_funcionario]
     );
 
+    console.log('✅ Pedido criado com sucesso:', result.rows[0].id_pedido);
     res.status(201).json({
       message: 'Pedido inserido com sucesso!',
       id_pedido: result.rows[0].id_pedido
     });
   } catch (error) {
-    console.error('Erro ao inserir pedido:', error);
-    res.status(500).json({ error: 'Erro ao inserir pedido' });
+    console.error('❌ Erro ao inserir pedido:', error);
+    res.status(500).json({ error: 'Erro ao inserir pedido', details: error.message });
   }
 };
 
