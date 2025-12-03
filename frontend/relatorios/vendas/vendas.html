@@ -6,7 +6,7 @@
     <title>Relatório de Vendas - Loja de Tênis</title>
     <link rel="stylesheet" href="../../header.css"> <!-- Assumindo que o header.css está na raiz do frontend -->
     <link rel="stylesheet" href="vendas.css">
-    <!-- Incluir Chart.js para os gráficos -->
+    <!-- Incluir Chart.js via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -18,9 +18,11 @@
         <section id="report-header">
             <h1>Relatório de Vendas</h1>
             <h2 id="report-period">Período: Todos os Pedidos</h2>
-            <button id="print-button" title="Imprimir Relatório">
-                <!-- Ícone da impressora (será adicionado via CSS ou SVG) -->
-                <img src="../../imagens/printer-icon.svg" alt="Imprimir" style="width: 24px; height: 24px;">
+            <button id="print-button" title="Imprimir Relatório" aria-label="Imprimir Relatório" style="background:#004d7a;color:#fff;border:none;padding:8px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+                </svg>
+                <span style="font-weight:600;">Imprimir</span>
             </button>
             <button id="back-to-menu" title="Voltar ao Menu">Voltar ao Menu</button>
         </section>

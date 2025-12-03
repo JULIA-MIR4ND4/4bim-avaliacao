@@ -57,25 +57,15 @@
         <div class="main-content">
             <section class="ranking-section">
                 <h2>Ranking dos 10 Modelos Mais Vendidos</h2>
-                <canvas id="rankingChart"></canvas>
+                <canvas id="rankingChart" style="width:100%;height:300px;max-height:320px;"></canvas>
             </section>
 
-            <aside class="side-charts">
-                <section class="payment-section">
-                    <h2>Formas de Pagamento</h2>
-                    <canvas id="paymentChart"></canvas>
-                </section>
-
-                <section class="size-section">
-                    <h2>Vendas por Tamanho</h2>
-                    <canvas id="sizeChart"></canvas>
-                </section>
-            </aside>
+            <!-- side-charts removed: Payment and Size charts are only shown in Relatório de Vendas -->
         </div>
 
         <section class="timeline-section">
             <h2>Receita ao Longo do Tempo</h2>
-            <canvas id="timelineChart"></canvas>
+            <canvas id="timelineChart" style="width:100%;height:260px;max-height:280px;"></canvas>
         </section>
 
         <div class="export-buttons">
@@ -84,11 +74,12 @@
         </div>
     </div>
 
-    <!-- Ícone de Impressora -->
-    <button id="print-button" title="Imprimir relatório">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+    <!-- Ícone de Impressora (visível) -->
+    <button id="print-button" title="Imprimir relatório" style="position:fixed;top:16px;right:16px;z-index:999;background:#004d7a;color:#fff;border:none;padding:10px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);cursor:pointer;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
             <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
         </svg>
+        <span style="font-weight:600;font-size:14px;">Imprimir</span>
     </button>
 
     <!-- Modal de Detalhes do Produto -->

@@ -89,6 +89,10 @@ function receitaPorPeriodo(vendas, agrupamento = 'day') {
     return Object.keys(serie).sort().map(k => ({ periodo: k, receita: serie[k] }));
 }
 
+function isValidDate(d) {
+    return d instanceof Date && !isNaN(d.getTime());
+}
+
 function detalhesProduto(vendas, modelo) {
     const vendasProd = vendas.filter(v => (v.itens || []).some(i => (i.nome_tenis || i.modelo) === modelo));
     const historico = {};
@@ -212,7 +216,7 @@ function initializeCharts() {
         }
     };
 
-    // Gráfico de Ranking (Barras Horizontais)
+    // Gráfico de Ranking (Barras Horizontais) - visual reforçado
     rankingChart = new Chart(document.getElementById('rankingChart'), {
         type: 'bar',
         data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
@@ -222,50 +226,31 @@ function initializeCharts() {
             onClick: handleRankingClick,
             plugins: {
                 ...chartOptions.plugins,
-                legend: { display: true, position: 'bottom' }
+                legend: { display: false },
+                title: { display: true, text: 'Top Produtos Vendidos', font: { size: 16 } }
             },
             scales: {
-                x: { beginAtZero: true },
-                y: { beginAtZero: true }
-            }
+                x: { beginAtZero: true, ticks: { font: { size: 12 }, callback: value => value.toLocaleString('pt-BR') } },
+                y: { beginAtZero: true, ticks: { font: { size: 12 } } }
+            },
+            layout: { padding: { top: 8, right: 8, bottom: 8, left: 8 } }
         }
     });
 
-    // Gráfico de Formas de Pagamento (Pizza)
-    paymentChart = new Chart(document.getElementById('paymentChart'), {
-        type: 'pie',
-        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-        options: {
-            ...chartOptions,
-            plugins: {
-                ...chartOptions.plugins,
-                legend: { position: 'right' }
-            }
-        }
-    });
+    // Observação: removemos os gráficos de Forma de Pagamento e Vendas por Tamanho
+    // do relatório de Estatísticas para melhorar foco. Esses elementos não existem
+    // no HTML desta página e são renderizados apenas no relatório de Vendas.
 
-    // Gráfico de Vendas por Tamanho (Barras Verticais)
-    sizeChart = new Chart(document.getElementById('sizeChart'), {
-        type: 'bar',
-        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-        options: {
-            ...chartOptions,
-            scales: {
-                x: { beginAtZero: true },
-                y: { beginAtZero: true }
-            }
-        }
-    });
-
-    // Gráfico de Linha do Tempo (Receita)
+    // Gráfico de Linha do Tempo (Receita) - visual limpo
     timelineChart = new Chart(document.getElementById('timelineChart'), {
         type: 'line',
-        data: { labels: [], datasets: [{ data: [], borderColor: 'rgb(75, 192, 192)', tension: 0.1 }] },
+        data: { labels: [], datasets: [{ data: [], borderColor: '#004d7a', backgroundColor: 'rgba(0,77,122,0.08)', fill: true, tension: 0.2, pointRadius: 3 }] },
         options: {
             ...chartOptions,
+            plugins: { ...chartOptions.plugins, title: { display: true, text: 'Receita ao Longo do Tempo', font: { size: 14 } } },
             scales: {
-                x: { type: 'category' },
-                y: { beginAtZero: true }
+                x: { type: 'category', ticks: { font: { size: 12 } } },
+                y: { beginAtZero: true, ticks: { font: { size: 12 }, callback: val => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) } }
             }
         }
     });
@@ -369,8 +354,18 @@ async function loadAndRenderData() {
     let { start, end } = getPeriodoDatas(periodoSelect.value);
 
     if (periodoSelect.value === 'custom') {
-        start = new Date(dataInicioInput.value);
-        end = new Date(dataFimInput.value);
+        const inicioVal = dataInicioInput.value;
+        const fimVal = dataFimInput.value;
+        if (!inicioVal || !fimVal) {
+            if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Selecione datas de início e fim válidas.'; }
+            return; // aborta a renderização até o usuário corrigir as datas
+        }
+        start = new Date(inicioVal);
+        end = new Date(fimVal);
+        if (!isValidDate(start) || !isValidDate(end)) {
+            if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Datas inválidas. Verifique o formato.'; }
+            return;
+        }
         end.setHours(23, 59, 59, 999); // Garante que o dia final seja inclusivo
     }
 
@@ -378,8 +373,8 @@ async function loadAndRenderData() {
     const apiErrorEl = document.getElementById('api-error');
     if (apiErrorEl) { apiErrorEl.style.display = 'none'; apiErrorEl.textContent = ''; }
 
-    const sISO = start ? start.toISOString().split('T')[0] : null;
-    const eISO = end ? end.toISOString().split('T')[0] : null;
+    const sISO = isValidDate(start) ? start.toISOString().split('T')[0] : null;
+    const eISO = isValidDate(end) ? end.toISOString().split('T')[0] : null;
 
     // 0. Buscar estatísticas agregadas do servidor e atualizar cards (mais eficiente)
     try {
@@ -416,8 +411,8 @@ async function loadAndRenderData() {
     updateSummaryPanel(resumo, ranking);
 
     // 3. Calcular e renderizar gráficos
-    const pagamentos = vendasPorFormaPagamento(vendas);
-    const tamanhos = vendasPorTamanho(vendas);
+    // Nota: neste relatório removemos os gráficos de "Forma de Pagamento" e "Vendas por Tamanho"
+    // para melhorar foco e visualização; estes gráficos permanecem no relatório de Vendas.
     let receita = receitaPorPeriodo(vendas, agrupamentoSelect.value);
     // Se o agrupamento for por mês, preferimos os dados agregados do servidor
     if (agrupamentoSelect.value === 'month') {
@@ -431,11 +426,11 @@ async function loadAndRenderData() {
     }
 
     renderRankingChart(ranking);
-    renderPaymentChart(pagamentos);
-    renderSizeChart(tamanhos);
     renderTimelineChart(receita);
 
     // Armazenar dados atuais para exportação
+    const pagamentos = vendasPorFormaPagamento(vendasGlobais);
+    const tamanhos = vendasPorTamanho(vendasGlobais);
     dadosAtuais = { resumo, ranking, pagamentos, tamanhos, receita };
 }
 
@@ -579,13 +574,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Aplicar filtros -> refaz a consulta ao backend com as datas selecionadas
     const btnApply = document.getElementById('apply-filters');
     if (btnApply) btnApply.addEventListener('click', async () => {
-        // if custom, take date inputs
-        let s=null,e=null;
+        // if custom, take date inputs (with validation)
+        let s = null, e = null;
         if (periodoSelect.value === 'custom') {
-            s = dataInicioInput.value ? new Date(dataInicioInput.value).toISOString().split('T')[0] : null;
-            e = dataFimInput.value ? new Date(dataFimInput.value).toISOString().split('T')[0] : null;
+            const inicioVal = dataInicioInput.value;
+            const fimVal = dataFimInput.value;
+            const apiErrorEl = document.getElementById('api-error');
+            if (!inicioVal || !fimVal) {
+                if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Selecione datas de início e fim válidas.'; }
+                return;
+            }
+            const d1 = new Date(inicioVal);
+            const d2 = new Date(fimVal);
+            if (!isValidDate(d1) || !isValidDate(d2)) {
+                if (apiErrorEl) { apiErrorEl.style.display = 'block'; apiErrorEl.textContent = 'Datas inválidas. Verifique o formato.'; }
+                return;
+            }
+            s = d1.toISOString().split('T')[0];
+            e = d2.toISOString().split('T')[0];
         }
-        vendasGlobais = await fetchVendasFromApi(s,e);
+        vendasGlobais = await fetchVendasFromApi(s, e);
         loadAndRenderData();
     });
     closeModal.addEventListener('click', closeProductModal);
