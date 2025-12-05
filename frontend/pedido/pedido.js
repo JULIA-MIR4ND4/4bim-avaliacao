@@ -252,35 +252,49 @@ function preencherFormulario(pedido) {
 // Carregar itens de um pedido (GET /pedido/produtos/:pedidoId)
 async function carregarItensDoPedido(pedidoId) {
   if (!pedidoId) {
+    // Se não houver ID, limpa a tabela
     renderizerTabelaItensPedido([]);
     return;
   }
+
   try {
-  const res = await fetch(`${API_BASE_URL}/pedido/produtos/${pedidoId}`);
-    if (res.ok) {
-      const itens = await res.json();
-      // Normalizar: se objeto único, transformar em array
-      let itensNorm = itens;
-      if (itens && !Array.isArray(itens)) itensNorm = [itens];
-      itensDoPedido = itensNorm || [];
-      renderizerTabelaItensPedido(itensDoPedido);
-    } else if (res.status === 404) {
-      // sem itens
-      itensDoPedido = [];
+    // Chamada para a rota correta
+    let rota = `${API_BASE_URL}/produtos/${pedidoId}`;
+    alert(rota)
+    const response = await fetch(rota)
+
+    if (response.ok) {
+      const data = await response.json();
+      console.debug('carregarItensDoPedido: resposta do backend:', data);
+
+      // Normalizar: garantir que seja sempre um array
+      const itensNorm = Array.isArray(data) ? data : (data ? [data] : []);
+      window.itensDoPedido = itensNorm;
+
+      renderizerTabelaItensPedido(window.itensDoPedido);
+
+    } else if (response.status === 404) {
+      // Nenhum item encontrado para esse pedido
+      console.debug(`carregarItensDoPedido: sem itens (404) para pedidoId=${pedidoId}`);
+      window.itensDoPedido = [];
       renderizerTabelaItensPedido([]);
+
     } else {
-      // outros erros: mostra vazio e log
-      console.warn('carregarItensDoPedido status:', res.status);
-      itensDoPedido = [];
+      // Outros erros: logar e limpar tabela
+      const textoErro = await response.text().catch(() => '');
+      console.warn(`carregarItensDoPedido: erro ${response.status} - ${textoErro}`);
+      window.itensDoPedido = [];
       renderizerTabelaItensPedido([]);
     }
-  } catch (err) {
-    // silencioso para erros de itens, mas log no console
-    console.error('Erro ao carregar itens do pedido:', err);
-    itensDoPedido = [];
+
+  } catch (error) {
+    // Erros de rede ou exceções inesperadas
+    console.error('Erro ao carregar itens do pedido:', error);
+    window.itensDoPedido = [];
     renderizerTabelaItensPedido([]);
   }
 }
+
 
 // Renderiza tabela de itens do pedido (tbody com id itensTableBody)
 function renderizerTabelaItensPedido(itens) {

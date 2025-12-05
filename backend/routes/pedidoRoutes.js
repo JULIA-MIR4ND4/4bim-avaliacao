@@ -2,15 +2,17 @@ const express = require('express');
 const router = express.Router();
 const pedidoController = require('../controllers/pedidoController');
 
+// Rotas específicas devem vir ANTES de rotas genéricas (/:id)
 router.get('/crudPedido', pedidoController.abrirCrudPedido);
+router.get('/carrinho', pedidoController.abrirCarrinho);
+router.get('/debug/:id', pedidoController.debugPedido);
+router.get('/produtos/:id', pedidoController.buscarProdutosDoPedido);
+router.post('/produtos', pedidoController.inserirOuAtualizarProdutosNoPedido);
+
+// Rotas genéricas (/:id) DEPOIS
 router.get('/', pedidoController.listarPedidos);
 router.get('/:id', pedidoController.buscarPedidoPorId);
-// Adicionar rota para buscar produtos de um pedido
-router.get('/produtos/:id', pedidoController.buscarProdutosDoPedido);
 router.post('/', pedidoController.inserirPedido);
 router.put('/:id', pedidoController.atualizarPedido);
 router.delete('/:id', pedidoController.excluirPedido);
-// Adicionar rota para inserir ou atualizar produtos em um pedido
-router.post('/produtos', pedidoController.inserirOuAtualizarProdutosNoPedido);
-router.get('/carrinho', pedidoController.abrirCarrinho);
 module.exports = router;

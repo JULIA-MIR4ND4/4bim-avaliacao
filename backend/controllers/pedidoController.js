@@ -64,31 +64,49 @@ exports.buscarPedidoPorId = async (req, res) => {
   }
 };
 
-// Inserir pedido (aceita id_funcionario do frontend ou null)
+// Ajustar a função inserirPedido para forçar funcionário = 100 (vendedor online)
 exports.inserirPedido = async (req, res) => {
-  console.log('Corpo da requisição para inserir pedido:', req.body);
+  console.log('📝 [POST /pedido] Corpo da requisição:', req.body);
   try {
-    let { data_do_pedido, id_cliente, id_funcionario } = req.body;
+    let { data_do_pedido, id_cliente } = req.body;
 
-    // Se id_funcionario não for enviado, usar null (pode ser preenchido depois)
-    if (id_funcionario === undefined || id_funcionario === null) {
-      id_funcionario = null;
+    // FORÇAR SEMPRE o id_funcionario = 100
+    const id_funcionario = 100;
+
+    // Evitar criar pedidos duplicados: se a pessoa já tem id_pedido_atual válido, retorne ele
+    const pessoaRes = await db.query('SELECT id_pedido_atual FROM pessoa WHERE id_pessoa = $1', [id_cliente]);
+    if (pessoaRes.rows.length > 0) {
+      const idPedidoAtual = pessoaRes.rows[0].id_pedido_atual;
+      if (idPedidoAtual) {
+        // Verifica se o pedido realmente existe
+        const check = await db.query('SELECT 1 FROM Pedido WHERE id_pedido = $1', [idPedidoAtual]);
+        if (check.rowCount > 0) {
+          console.log('♻️ [POST /pedido] Reutilizando pedido existente:', idPedidoAtual, 'para pessoa:', id_cliente);
+          return res.status(200).json({ message: 'Pedido já existe', id_pedido: idPedidoAtual });
+        }
+      }
     }
 
-    const result = await db.query(
-      `INSERT INTO public.Pedido (data_do_pedido, id_cliente, id_funcionario)
-       VALUES ($1, $2, $3) RETURNING id_pedido`,
-      [data_do_pedido, id_cliente, id_funcionario]
-    );
+    // Se chegou aqui, cria novo pedido e atualiza pessoa.id_pedido_atual em transação
+    await db.transaction(async (client) => {
+      console.log('🔄 [POST /pedido] Iniciando transação para criar novo pedido');
+      
+      const insertRes = await client.query(
+        `INSERT INTO Pedido (data_do_pedido, id_cliente, id_funcionario)
+         VALUES ($1, $2, $3) RETURNING id_pedido`,
+        [data_do_pedido, id_cliente, id_funcionario]
+      );
+      const novoId = insertRes.rows[0].id_pedido;
+      console.log('✅ [POST /pedido] Pedido criado com ID:', novoId);
 
-    console.log('✅ Pedido criado com sucesso:', result.rows[0].id_pedido);
-    res.status(201).json({
-      message: 'Pedido inserido com sucesso!',
-      id_pedido: result.rows[0].id_pedido
+      await client.query('UPDATE pessoa SET id_pedido_atual = $1 WHERE id_pessoa = $2', [novoId, id_cliente]);
+      console.log('✅ [POST /pedido] pessoa.id_pedido_atual atualizado para:', novoId);
+
+      res.status(201).json({ message: 'Pedido inserido com sucesso!', id_pedido: novoId });
     });
   } catch (error) {
-    console.error('❌ Erro ao inserir pedido:', error);
-    res.status(500).json({ error: 'Erro ao inserir pedido', details: error.message });
+    console.error('❌ [POST /pedido] Erro ao inserir pedido:', error);
+    res.status(500).json({ error: 'Erro ao inserir pedido' });
   }
 };
 
@@ -155,6 +173,7 @@ exports.excluirPedido = async (req, res) => {
 exports.buscarProdutosDoPedido = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(`🔍 [GET /pedido/produtos/${id}] Buscando itens do pedido`);
     const { rows } = await db.query(`
       SELECT 
           pp.id_tenis,
@@ -167,14 +186,11 @@ exports.buscarProdutosDoPedido = async (req, res) => {
       ORDER BY pp.id_tenis;
     `, [id]);
 
-    // Se quiser retornar array vazio em vez de 404, descomente abaixo:
-    // return res.status(200).json(rows);
-
-    if (rows.length === 0) return res.status(404).json({ error: 'Nenhum produto encontrado para este pedido' });
-
+    console.log(`✅ [GET /pedido/produtos/${id}] Encontrados ${rows.length} itens:`, rows);
+    // Retorna sempre 200 com array vazio se nenhum item encontrado
     res.status(200).json(rows);
   } catch (error) {
-    console.error('Erro ao buscar produtos do pedido:', error);
+    console.error('❌ [GET /pedido/produtos] Erro ao buscar produtos do pedido:', error);
     res.status(500).json({ error: 'Erro ao buscar produtos do pedido' });
   }
 };
@@ -223,5 +239,29 @@ exports.inserirOuAtualizarProdutosNoPedido = async (req, res) => {
     // db.transaction já faz rollback; aqui apenas retornamos erro ao cliente
     const msg = error.message || 'Erro ao inserir ou atualizar produtos no pedido';
     res.status(500).json({ error: msg });
+  }
+};
+
+// Rota de debug para inspecionar Pedido + itens diretamente no DB
+exports.debugPedido = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'ID do pedido é obrigatório' });
+
+    console.log(`[DEBUG /pedido/debug/${id}] Consultando pedido e itens`);
+    
+    const pedidoRes = await db.query('SELECT * FROM Pedido WHERE id_pedido = $1', [id]);
+    const itensRes = await db.query('SELECT * FROM pedidohastenis WHERE id_pedido = $1 ORDER BY id_tenis', [id]);
+    
+    console.log(`[DEBUG /pedido/debug/${id}] Pedido:`, pedidoRes.rows[0] || 'NÃO ENCONTRADO');
+    console.log(`[DEBUG /pedido/debug/${id}] Itens (${itensRes.rowCount}):`, itensRes.rows);
+
+    return res.status(200).json({ 
+      pedido: pedidoRes.rows[0] || null, 
+      itens: itensRes.rows || [] 
+    });
+  } catch (error) {
+    console.error('Erro debugPedido:', error);
+    res.status(500).json({ error: 'Erro no debug do pedido' });
   }
 };

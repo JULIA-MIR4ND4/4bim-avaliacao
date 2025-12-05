@@ -45,10 +45,8 @@ exports.obterItensDoPedido = async (req, res) => {
       [idPedidoNum]
     );
 
-    // Se não houver itens, retornamos array vazio (200) — facilita o consumo no frontend
     if (result.rowCount === 0) {
-      console.log(`[GET /pedido/produtos/${idPedidoNum}] Nenhum item encontrado para este pedido.`);
-      return res.status(200).json([]);
+      return res.status(404).json({ message: 'Nenhum item encontrado para este pedido.' });
     }
 
     res.status(200).json(result.rows);
@@ -105,7 +103,7 @@ exports.obterItemDoPedido = async (req, res) => {
  */
 exports.criarItemDoPedido = async (req, res) => {
   try {
-    console.log('[POST /pedido/produtos] Recebido:', JSON.stringify(req.body));
+    console.log('📦 [POST /pedido/produtos] Recebido:', JSON.stringify(req.body));
 
     // Formato 1: { id_pedido, produtos: [...] }
     if (req.body.id_pedido && Array.isArray(req.body.produtos)) {
@@ -133,10 +131,18 @@ exports.criarItemDoPedido = async (req, res) => {
         return res.status(400).json({ error: 'Formato de dados inválido' });
       }
 
-      // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
-      // Adiciona schema explícito
+      console.log(`🔍 [POST /pedido/produtos] Verificando se pedido ${pedidoId} existe no banco...`);
+      const checkPedido = await query('SELECT id_pedido FROM Pedido WHERE id_pedido = $1', [pedidoId]);
+      if (checkPedido.rowCount === 0) {
+        console.log(`❌ [POST /pedido/produtos] Pedido ${pedidoId} NÃO ENCONTRADO no banco!`);
+        return res.status(400).json({ error: `Pedido ${pedidoId} não existe no banco de dados` });
+      }
+      console.log(`✅ [POST /pedido/produtos] Pedido ${pedidoId} encontrado no banco`);
+
+      // 🔥 UPSERT para evitar DUPLICATE KEY
+      console.log(`💾 [POST /pedido/produtos] Inserindo item: id_tenis=${produtoId}, id_pedido=${pedidoId}, qtd=${qtd}, preco=${preco}`);
       const result = await query(
-        `INSERT INTO public.pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
+        `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (id_tenis, id_pedido)
          DO UPDATE SET quantidade = EXCLUDED.quantidade,
@@ -145,7 +151,7 @@ exports.criarItemDoPedido = async (req, res) => {
         [produtoId, pedidoId, qtd, preco]
       );
 
-      console.log('[POST /pedido/produtos] Item criado (formato novo):', result.rows[0]);
+      console.log('✅ [POST /pedido/produtos] Item criado/atualizado:', result.rows[0]);
       return res.status(201).json(result.rows[0]);
     }
 
@@ -168,9 +174,8 @@ exports.criarItemDoPedido = async (req, res) => {
     }
 
     // 🔥 ALTERAÇÃO ÚNICA: UPSERT PARA EVITAR DUPLICATE KEY
-    // Adiciona schema explícito
     const result = await query(
-      `INSERT INTO public.pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
+      `INSERT INTO pedidohastenis (id_tenis, id_pedido, quantidade, preco_unitario)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (id_tenis, id_pedido)
        DO UPDATE SET quantidade = EXCLUDED.quantidade,
